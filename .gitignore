@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+venv_2/
+.env
+.venv
+env/
+build/
+dist/
+*.spec
+
+# Logs & Temp
+logs/
+temp/
+cache/
+output/
+*.log
+
+# AI Model Data (Large files)
+/piano_transcription_inference_data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node.js
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# Local FluidSynth (since it's a large binary package)
+fluidsynth-v2.5.2-win10-x64-glib/
