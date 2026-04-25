@@ -1,0 +1,13 @@
+2026-04-25 18:52:21,424 - root - INFO - Logging initialized. Saving to: D:\Documents\Projects\H2Pia\Projects\H2Pia URL2MIDI\logs\u2m_20260425_185221.log
+2026-04-25 18:52:21,424 - root - INFO - Starting U2M Application
+2026-04-25 18:52:21,477 - src.core.queue_manager - INFO - QueueManager initialized with max_concurrent=10
+2026-04-25 18:53:12,134 - src.core.queue_manager - INFO - Adding task to queue: https://youtu.be/9ECm7dScY6Q?si=mpp4LrObGCV16BEN (ID: 2454f3fc)
+2026-04-25 18:53:12,135 - src.core.queue_manager - INFO - First task added. Initializing TranscriptionService...
+2026-04-25 18:53:12,136 - src.services.transcriber - INFO - Initializing TranscriptionService on cpu
+2026-04-25 18:53:17,892 - src.core.queue_manager - ERROR - Failed to initialize TranscriptionService: 403 Client Error: Forbidden for url: https://zenodo.org/record/4034264/files/CRNN_note_F1%3D0.9677_pedal_F1%3D0.9186.pth?download=1
+2026-04-25 18:53:17,892 - src.core.queue_manager - ERROR - Task error (ID: 2454f3fc): Model Init Failed: 403 Client Error: Forbidden for url: https://zenodo.org/record/4034264/files/CRNN_note_F1%3D0.9677_pedal_F1%3D0.9186.pth?download=1
+2026-04-25 18:56:21,909 - src.core.queue_manager - INFO - Adding task to queue: https://youtu.be/9ECm7dScY6Q?si=mpp4LrObGCV16BEN (ID: 6c810113)
+2026-04-25 18:56:21,910 - src.core.queue_manager - INFO - First task added. Initializing TranscriptionService...
+2026-04-25 18:56:21,910 - src.services.transcriber - INFO - Initializing TranscriptionService on cpu
+2026-04-25 18:56:26,694 - src.core.queue_manager - ERROR - Failed to initialize TranscriptionService: 403 Client Error: Forbidden for url: https://zenodo.org/record/4034264/files/CRNN_note_F1%3D0.9677_pedal_F1%3D0.9186.pth?download=1
+2026-04-25 18:56:26,694 - src.core.queue_manager - ERROR - Task error (ID: 6c810113): Model Init Failed: 403 Client Error: Forbidden for url: https://zenodo.org/record/4034264/files/CRNN_note_F1%3D0.9677_pedal_F1%3D0.9186.pth?download=1

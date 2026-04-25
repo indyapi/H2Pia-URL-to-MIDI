@@ -1,0 +1,8 @@
+2026-04-25 19:21:20,034 - root - INFO - Logging initialized. Saving to: D:\Documents\Projects\H2Pia\Projects\H2Pia URL2MIDI\logs\u2m_20260425_192120.log
+2026-04-25 19:21:20,034 - root - INFO - Starting U2M Application
+2026-04-25 19:21:20,035 - src.core.queue_manager - INFO - QueueManager initialized with max_concurrent=10
+2026-04-25 19:52:03,016 - src.core.queue_manager - INFO - Adding task to queue: https://youtu.be/9ECm7dScY6Q?si=mpp4LrObGCV16BEN (ID: 24b77b07)
+2026-04-25 19:52:03,016 - src.core.queue_manager - INFO - First task added. Initializing TranscriptionService...
+2026-04-25 19:52:03,017 - src.services.transcriber - INFO - Initializing TranscriptionService on cpu
+2026-04-25 19:52:05,261 - src.core.queue_manager - ERROR - Failed to initialize TranscriptionService: 403 Client Error: Forbidden for url: https://zenodo.org/record/4034264/files/CRNN_note_F1%3D0.9677_pedal_F1%3D0.9186.pth?download=1
+2026-04-25 19:52:05,261 - src.core.queue_manager - ERROR - Task error (ID: 24b77b07): Model Init Failed: 403 Client Error: Forbidden for url: https://zenodo.org/record/4034264/files/CRNN_note_F1%3D0.9677_pedal_F1%3D0.9186.pth?download=1

@@ -1,0 +1,64 @@
+import os
+import traceback
+import logging
+from PySide6.QtCore import QRunnable, Slot, QObject, Signal
+
+logger = logging.getLogger(__name__)
+
+class WorkerSignals(QObject):
+    """
+    Defines the signals available from a running worker thread.
+    """
+    finished = Signal(str)      # id
+    error = Signal(str, str)    # id, error message
+    progress = Signal(str, str, int) # id, status_text, progress_value
+    metadata = Signal(str, dict) # id, metadata_dict
+
+class TranscriptionWorker(QRunnable):
+    def __init__(self, item_id, url, youtube_service, transcriber_service, output_dir):
+        super().__init__()
+        self.item_id = item_id
+        self.url = url
+        self.yt_service = youtube_service
+        self.transcriber_service = transcriber_service
+        self.output_dir = output_dir
+        self.signals = WorkerSignals()
+        logger.info(f"Worker initialized for {url} (ID: {item_id})")
+
+    @Slot()
+    def run(self):
+        logger.info(f"Worker started: {self.item_id}")
+        try:
+            # 1. Fetch Metadata
+            logger.info(f"[{self.item_id}] Fetching metadata...")
+            self.signals.progress.emit(self.item_id, "Fetching metadata...", 10)
+            meta = self.yt_service.get_metadata(self.url)
+            self.signals.metadata.emit(self.item_id, meta)
+            
+            safe_title = "".join([c for c in meta['title'] if c.isalnum() or c in (' ', '.', '_')]).rstrip()
+            audio_filename = f"{self.item_id}_{safe_title}"
+            
+            # 2. Download Audio
+            logger.info(f"[{self.item_id}] Downloading audio...")
+            self.signals.progress.emit(self.item_id, "Downloading audio...", 30)
+            audio_path = self.yt_service.download_audio(self.url, audio_filename)
+            
+            # 3. Transcribe
+            logger.info(f"[{self.item_id}] Transcribing...")
+            self.signals.progress.emit(self.item_id, "Transcribing (this may take a while)...", 60)
+            midi_path = os.path.join(self.output_dir, f"{safe_title}.mid")
+            self.transcriber_service.transcribe(audio_path, midi_path)
+            
+            # 4. Cleanup
+            logger.info(f"[{self.item_id}] Cleaning up...")
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
+                
+            logger.info(f"[{self.item_id}] Finished successfully.")
+            self.signals.progress.emit(self.item_id, "Finished", 100)
+            self.signals.finished.emit(self.item_id)
+            
+        except Exception as e:
+            logger.error(f"[{self.item_id}] Worker failed: {str(e)}")
+            logger.error(traceback.format_exc())
+            self.signals.error.emit(self.item_id, str(e))

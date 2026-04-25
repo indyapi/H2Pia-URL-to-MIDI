@@ -1,0 +1,3 @@
+2026-04-25 18:49:02,993 - root - INFO - Logging initialized. Saving to: D:\Documents\Projects\H2Pia\Projects\H2Pia URL2MIDI\logs\u2m_20260425_184902.log
+2026-04-25 18:49:02,994 - root - INFO - Starting U2M Application
+2026-04-25 18:49:02,994 - src.services.transcriber - INFO - Initializing TranscriptionService on cpu

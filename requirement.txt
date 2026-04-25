@@ -1,0 +1,11 @@
+gdown
+yt-dlp>=2025.10.0
+piano-transcription-inference
+basic-pitch
+PySide6>=6.5.0
+pyfluidsynth
+pydub
+librosa>=0.10.0
+torch>=2.0.0
+numpy
+ffmpeg-python

@@ -1,0 +1,11 @@
+{
+  "name": "u2m-url2midi",
+  "version": "1.0.0",
+  "description": "YouTube URL to MIDI Transcription App",
+  "main": "src/main.py",
+  "scripts": {
+    "dev": ".\\venv\\Scripts\\python.exe run.py"
+  },
+  "author": "",
+  "license": "ISC"
+}

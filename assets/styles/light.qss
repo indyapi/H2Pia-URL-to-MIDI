@@ -1,0 +1,161 @@
+/* H2Pia Light Theme QSS */
+
+QMainWindow {
+    background-color: #FFFDF5;
+    color: #4E342E;
+}
+
+QTabWidget::pane {
+    border: 1px solid #E0E0E0;
+    background-color: #FFFDF5;
+    margin-top: -1px;
+}
+
+QTabBar::tab {
+    background-color: #F5F5F5;
+    color: #888;
+    padding: 10px 20px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    margin-right: 2px;
+}
+
+QTabBar::tab:selected {
+    background-color: #FFFFFF;
+    color: #4E342E;
+    border-bottom: 2px solid #4CAFAA;
+}
+
+QFrame#Card {
+    background-color: #FFFFFF;
+    border: 1px solid #E0E0E0;
+    border-radius: 8px;
+}
+
+QFrame#StepCard {
+    background-color: #FFF9F0;
+    border: 1px solid #E0E0E0;
+    border-radius: 10px;
+}
+
+QLabel {
+    color: #4E342E;
+}
+
+QLabel#Header {
+    color: #8D6E63;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+QPushButton {
+    background-color: #EEEEEE;
+    color: #4E342E;
+    border: 1px solid #DDD;
+    padding: 8px 15px;
+    border-radius: 4px;
+}
+
+QPushButton:hover {
+    background-color: #E0E0E0;
+}
+
+QPushButton#Primary {
+    background-color: #4CAFAA;
+    color: white;
+    border: none;
+}
+
+QPushButton#Accent {
+    background-color: #FFB300;
+    color: white;
+    border: none;
+}
+
+QPushButton#Danger {
+    background-color: #FF5252;
+    color: white;
+    border: none;
+}
+
+QComboBox, QLineEdit {
+    background-color: white;
+    border: 1px solid #E0E0E0;
+    border-radius: 4px;
+    padding: 5px;
+    color: #4E342E;
+}
+
+QListWidget {
+    background-color: white;
+    border: 1px solid #E0E0E0;
+    border-radius: 4px;
+    color: #4E342E;
+}
+
+QListWidget::item {
+    background-color: white;
+}
+
+QListWidget::item:alternate {
+    background-color: #F8F9FA;
+}
+
+QListWidget::item:selected {
+    background-color: #4CAFAA;
+    color: white;
+}
+
+QSplitter::handle {
+    background-color: #E0E0E0;
+}
+
+QScrollArea, QScrollArea > QWidget > QWidget {
+    background-color: transparent;
+    border: none;
+}
+
+QMenu {
+    background-color: #FFFFFF;
+    color: #4E342E;
+    border: 1px solid #E0E0E0;
+}
+
+QMenu::item {
+    padding: 5px 25px 5px 20px;
+}
+
+QMenu::item:selected {
+    background-color: #4CAFAA;
+    color: white;
+}
+
+QWidget#SettingsWidget, QWidget#ConverterFrame, QWidget#PresetManager {
+    background-color: #FFFDF5;
+}
+
+QDialog {
+    background-color: #FFFDF5;
+    color: #4E342E;
+}
+
+QMessageBox {
+    background-color: #FFFDF5;
+    color: #4E342E;
+}
+
+QMessageBox QLabel {
+    color: #4E342E;
+}
+
+QMessageBox QPushButton {
+    background-color: #EEEEEE;
+    color: #4E342E;
+    border: 1px solid #DDD;
+    padding: 8px 15px;
+    border-radius: 4px;
+}
+
+QMessageBox QPushButton:hover {
+    background-color: #E0E0E0;
+}
