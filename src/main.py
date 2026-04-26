@@ -1,5 +1,26 @@
 import sys
 import os
+import shutil
+from pathlib import Path
+
+def setup_ffmpeg():
+    """Ensures ffmpeg/ffprobe are in PATH."""
+    if shutil.which("ffmpeg") and shutil.which("ffprobe"):
+        return True
+    
+    # Common winget location
+    winget_base = Path(os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Packages"))
+    if winget_base.exists():
+        for package_dir in winget_base.glob("Gyan.FFmpeg*"):
+            for bin_dir in package_dir.rglob("bin"):
+                if (bin_dir / "ffmpeg.exe").exists():
+                    os.environ["PATH"] = str(bin_dir) + os.pathsep + os.environ["PATH"]
+                    return True
+    return False
+
+# Setup ffmpeg before importing services that might depend on it
+setup_ffmpeg()
+
 from PySide6.QtWidgets import QApplication
 from src.ui.main_window import MainWindow
 from src.core.queue_manager import QueueManager

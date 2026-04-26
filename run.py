@@ -31,6 +31,27 @@ def setup_environment():
             
     return True
 
+def setup_ffmpeg():
+    """Checks for ffmpeg/ffprobe and adds them to PATH if found in common locations."""
+    import shutil
+    if shutil.which("ffmpeg") and shutil.which("ffprobe"):
+        return True
+    
+    print("ffmpeg/ffprobe not in PATH, searching in common locations...")
+    
+    # Common winget location
+    winget_base = Path(os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Packages"))
+    if winget_base.exists():
+        for package_dir in winget_base.glob("Gyan.FFmpeg*"):
+            # It might be directly in the package dir or in a subfolder like ffmpeg-*-full_build\bin
+            for bin_dir in package_dir.rglob("bin"):
+                if (bin_dir / "ffmpeg.exe").exists():
+                    print(f"Found ffmpeg in {bin_dir}, adding to PATH.")
+                    os.environ["PATH"] = str(bin_dir) + os.pathsep + os.environ["PATH"]
+                    return True
+    
+    return False
+
 def launch():
     """Launches the main application using the virtual environment."""
     base_dir = Path(__file__).parent.absolute()
@@ -40,6 +61,8 @@ def launch():
     if not venv_python.exists():
         print("Error: Virtual environment python not found.")
         return
+
+    setup_ffmpeg()
 
     print("--- Launching U2M ---")
     # Execute the main script as a module (-m src.main) from the root directory
