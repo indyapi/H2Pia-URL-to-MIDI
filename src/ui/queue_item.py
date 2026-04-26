@@ -29,32 +29,41 @@ class ThumbnailWorker(QThread):
 class QueueItem(QFrame):
     remove_requested = Signal(str) # item_id
 
-    def __init__(self, item_id, url):
+    def __init__(self, item_id, url, format_name="MIDI"):
         super().__init__()
         self.item_id = item_id
         self.url = url
-        self.setObjectName("Card") # Matches QSS
+        self.format_name = format_name
+        self.setObjectName("Card") 
         self.thumb_worker = None
         
         self.init_ui()
 
     def init_ui(self):
-        self.layout = QHBoxLayout(self)
+        self.main_layout = QHBoxLayout(self)
+        self.main_layout.setContentsMargins(10, 10, 10, 10)
         
         # Thumbnail placeholder
         self.thumbnail = QLabel()
         self.thumbnail.setFixedSize(120, 68)
         self.thumbnail.setStyleSheet("background-color: #0F172A; border-radius: 4px;")
         self.thumbnail.setAlignment(Qt.AlignCenter)
-        self.layout.addWidget(self.thumbnail)
+        self.main_layout.addWidget(self.thumbnail)
         
         # Details layout
         self.details_layout = QVBoxLayout()
+        self.details_layout.setSpacing(4)
+        
+        # Title Container (to handle the tag better)
+        self.title_container = QHBoxLayout()
         
         self.title_label = QLabel("Fetching metadata...")
         self.title_label.setObjectName("Header")
         self.title_label.setWordWrap(True)
-        self.details_layout.addWidget(self.title_label)
+        self.title_label.setStyleSheet("font-size: 14px; font-weight: bold; margin-right: 60px;")
+        self.title_container.addWidget(self.title_label, 1)
+        
+        self.details_layout.addLayout(self.title_container)
         
         self.status_label = QLabel("Queued")
         self.status_label.setStyleSheet("color: #9DB3D1; font-size: 11px;")
@@ -65,23 +74,42 @@ class QueueItem(QFrame):
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        # Initial Orange
         self.update_progress_style(0)
         self.details_layout.addWidget(self.progress_bar)
         
-        self.layout.addLayout(self.details_layout, 1)
+        self.main_layout.addLayout(self.details_layout, 1)
+        
+        # Format Tag (positioned overlay in top-right)
+        self.format_tag = QLabel(self.format_name, self)
+        self.format_tag.setAlignment(Qt.AlignCenter)
+        self.format_tag.setStyleSheet("""
+            background-color: rgba(46, 193, 204, 0.15);
+            color: #2EC1CC;
+            border: 1px solid #2EC1CC;
+            border-radius: 10px;
+            padding: 2px 8px;
+            font-size: 10px;
+            font-weight: bold;
+        """)
+        self.format_tag.adjustSize()
         
         # Remove button
         self.remove_btn = QPushButton("✕")
-        self.remove_btn.setFixedSize(30, 30)
+        self.remove_btn.setFixedSize(28, 28)
         self.remove_btn.setObjectName("Danger")
+        self.remove_btn.setToolTip("Remove from queue")
         self.remove_btn.clicked.connect(lambda: self.remove_requested.emit(self.item_id))
-        self.layout.addWidget(self.remove_btn)
+        self.main_layout.addWidget(self.remove_btn)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # Position tag and remove button manually for better control
+        padding = 10
+        self.remove_btn.move(self.width() - self.remove_btn.width() - padding, padding)
+        self.format_tag.move(self.width() - self.remove_btn.width() - self.format_tag.width() - padding - 8, padding + 4)
 
     def update_metadata(self, meta):
         self.title_label.setText(meta.get('title', 'Unknown Title'))
-        
-        # Load thumbnail asynchronously
         thumb_url = meta.get('thumbnail')
         if thumb_url:
             self.thumb_worker = ThumbnailWorker(thumb_url)
@@ -95,35 +123,20 @@ class QueueItem(QFrame):
             self.thumbnail.setPixmap(pixmap.scaled(120, 68, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
     def update_progress_style(self, value):
-        # orange -> yellow -> green -> bright blue
-        color = "#FF8C00" # Orange (0-25)
-        if value > 75:
-            color = "#00BFFF" # Bright Blue (76-100)
-        elif value > 50:
-            color = "#2ECC71" # Green (51-75)
-        elif value > 25:
-            color = "#F1C40F" # Yellow (26-50)
+        color = "#FF8C00" # Orange
+        if value > 75: color = "#00BFFF" # Blue
+        elif value > 50: color = "#2ECC71" # Green
+        elif value > 25: color = "#F1C40F" # Yellow
             
         self.progress_bar.setStyleSheet(f"""
-            QProgressBar {{
-                background-color: #1E293B;
-                border: none;
-                border-radius: 3px;
-            }}
-            QProgressBar::chunk {{
-                background-color: {color};
-                border_radius: 3px;
-            }}
+            QProgressBar {{ background-color: #1E293B; border: none; border-radius: 3px; }}
+            QProgressBar::chunk {{ background-color: {color}; border_radius: 3px; }}
         """)
 
     def update_status(self, status, progress):
         self.status_label.setText(status)
         self.progress_bar.setValue(progress)
         self.update_progress_style(progress)
-        
-        if status == "Finished":
-            self.update_progress_style(100) # Ensure blue
+        if status == "Finished": self.update_progress_style(100)
         elif "Error" in status:
-            self.progress_bar.setStyleSheet("""
-                QProgressBar::chunk { background-color: #E74C3C; }
-            """)
+            self.progress_bar.setStyleSheet("QProgressBar::chunk { background-color: #E74C3C; }")
