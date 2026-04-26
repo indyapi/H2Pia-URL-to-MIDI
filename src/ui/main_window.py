@@ -16,7 +16,8 @@ class SettingsDialog(QDialog):
         self.setFixedWidth(450)
         self.settings = current_settings or {
             "cpu_mode": "default", "cpu_limit": 50,
-            "ram_mode": "default", "ram_limit": 50
+            "ram_mode": "default", "ram_limit": 50,
+            "queue_size_limit": 10
         }
         self.init_ui()
 
@@ -77,6 +78,17 @@ class SettingsDialog(QDialog):
         ram_custom_layout.addStretch()
         layout.addLayout(ram_custom_layout)
 
+        # --- Queue Settings ---
+        layout.addWidget(QLabel("<b>Queue Settings</b>"))
+        queue_layout = QHBoxLayout()
+        queue_layout.addWidget(QLabel("Max Concurrent Queue Size:"))
+        self.queue_limit_spin = QSpinBox()
+        self.queue_limit_spin.setRange(1, 100)
+        self.queue_limit_spin.setValue(self.settings.get("queue_size_limit", 10))
+        queue_layout.addWidget(self.queue_limit_spin)
+        queue_layout.addStretch()
+        layout.addLayout(queue_layout)
+
         # Set current values
         if self.settings.get("cpu_mode") == "default": self.cpu_default_rb.setChecked(True)
         else: self.cpu_custom_rb.setChecked(True)
@@ -100,7 +112,8 @@ class SettingsDialog(QDialog):
             "cpu_mode": "default" if self.cpu_default_rb.isChecked() else "custom",
             "cpu_limit": self.cpu_limit_spin.value(),
             "ram_mode": "default" if self.ram_default_rb.isChecked() else "custom",
-            "ram_limit": self.ram_limit_spin.value()
+            "ram_limit": self.ram_limit_spin.value(),
+            "queue_size_limit": self.queue_limit_spin.value()
         }
 
 class Toast(QLabel):
@@ -123,10 +136,18 @@ class Toast(QLabel):
         self.setFixedHeight(60)
         
         self.opacity_effect = QGraphicsOpacityEffect(self)
+        self.opacity_effect.setOpacity(0)
         self.setGraphicsEffect(self.opacity_effect)
         
-        # Initial position (hidden)
         self.show()
+        
+        # Entrance Fade-in
+        self.fade_in_anim = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.fade_in_anim.setDuration(400)
+        self.fade_in_anim.setStartValue(0.0)
+        self.fade_in_anim.setEndValue(1.0)
+        self.fade_in_anim.setEasingCurve(QEasingCurve.OutCubic)
+        self.fade_in_anim.start()
         
         # Timer for 5 seconds
         self.timer = QTimer()
@@ -190,6 +211,8 @@ class MainWindow(QMainWindow):
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("Paste video or audio URL here (YouTube, TikTok, SoundCloud, etc.)...")
         self.url_input.setFixedHeight(40)
+        # UX: Press Enter to add to queue
+        self.url_input.returnPressed.connect(self.add_url)
         input_layout.addWidget(self.url_input)
 
         self.add_btn = QPushButton("Add to Queue")
@@ -242,6 +265,11 @@ class MainWindow(QMainWindow):
 
     def show_toast(self, message):
         toast = Toast(self, message)
+        
+        # Start position: below the window bottom
+        start_x = (self.width() - toast.width()) // 2
+        toast.move(start_x, self.height())
+        
         toast.closed.connect(self.on_toast_closed)
         self.active_toasts.append(toast)
         self.reposition_toasts()
@@ -253,13 +281,8 @@ class MainWindow(QMainWindow):
 
     def reposition_toasts(self):
         # Position toasts at the bottom center, stacking upwards
-        # Newest at the bottom
         bottom_margin = 30
         spacing = 10
-        
-        # Reverse list to have newest at bottom, but user asked: 
-        # "pushing all the old toast to the top" -> newest stays at bottom.
-        # We'll calculate positions from the bottom up.
         current_y = self.height() - bottom_margin
         
         for toast in reversed(self.active_toasts):
@@ -268,7 +291,7 @@ class MainWindow(QMainWindow):
             
             # Animate movement
             anim = QPropertyAnimation(toast, b"pos")
-            anim.setDuration(300)
+            anim.setDuration(500)
             anim.setStartValue(toast.pos())
             anim.setEndValue(QPoint(target_x, current_y))
             anim.setEasingCurve(QEasingCurve.OutCubic)
@@ -303,6 +326,12 @@ class MainWindow(QMainWindow):
         if not url:
             return
         
+        # Check queue size limit
+        limit = self.settings.get("queue_size_limit", 10)
+        if len(self.items) >= limit:
+            self.show_toast(f"Queue is full! Limit is {limit} items.")
+            return
+
         item_id = str(uuid.uuid4())[:8]
         
         # Create UI Item
@@ -342,7 +371,8 @@ class MainWindow(QMainWindow):
 
     def update_stats(self):
         count = len(self.items)
-        self.stats_label.setText(f"Queue size: {count}")
+        limit = self.settings.get("queue_size_limit", 10)
+        self.stats_label.setText(f"Queue size: {count} / {limit}")
 
     def open_output(self):
         output_path = os.path.abspath(self.queue_manager.output_dir)

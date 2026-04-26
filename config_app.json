@@ -4,5 +4,6 @@
     "ram_mode": "default",
     "ram_limit": 50,
     "output_dir": "output",
-    "theme": "dark"
+    "theme": "dark",
+    "queue_size_limit": 20
 }
