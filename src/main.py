@@ -68,6 +68,7 @@ def main():
     
     # Initialize Resource Manager (CPU/RAM)
     resource_manager = ResourceManager()
+    # Apply settings from config
     resource_manager.set_cpu_settings(
         config_manager.get("cpu_mode"), 
         config_manager.get("cpu_limit")
@@ -81,7 +82,6 @@ def main():
     # Load Thai-compatible font
     font_dir = os.path.join(base_dir, "assets", "font", "Sarabun")
     if os.path.exists(font_dir):
-        # We only need the regular font for most things, loading all is slow
         font_path = os.path.join(font_dir, "Sarabun-Regular.ttf")
         if os.path.exists(font_path):
             QFontDatabase.addApplicationFont(font_path)
@@ -98,7 +98,8 @@ def main():
         media_service=media_service,
         transcriber_service=transcriber_service,
         output_dir=output_dir,
-        max_concurrent=10
+        resource_manager=resource_manager, # Pass resource manager
+        max_concurrent=config_manager.get("queue_size_limit", 10)
     )
     
     # 3. Apply Style

@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 class ResourceManager(QThread):
     resource_paused = Signal(bool)  # True if paused, False if resumed
     toast_notification = Signal(str)
+    stats_updated = Signal(dict)
 
     def __init__(self):
         super().__init__()
@@ -23,6 +24,14 @@ class ResourceManager(QThread):
         self.running = True
         self.is_paused = False
         self.process = psutil.Process(os.getpid())
+        
+        # Current Stats
+        self.stats = {
+            "total_cpu": 0,
+            "total_ram": 0,
+            "app_cpu": 0,
+            "app_ram": 0
+        }
 
     def set_cpu_settings(self, mode, limit):
         self.cpu_mode = mode
@@ -44,6 +53,22 @@ class ResourceManager(QThread):
         except Exception as e:
             logger.error(f"Failed to set process priority: {e}")
 
+    def can_start_task(self):
+        """
+        Check if we can start a new task based on:
+        - App usage < 60%
+        - Total available > 15% (Total usage < 85%)
+        """
+        # App usage rules
+        if self.stats["app_cpu"] > 60 or self.stats["app_ram"] > 60:
+            return False, "App using > 60% resources"
+            
+        # Availability rules
+        if self.stats["total_cpu"] > 85 or self.stats["total_ram"] > 85:
+            return False, "System resources < 15% available"
+            
+        return True, "OK"
+
     def run(self):
         while self.running:
             try:
@@ -55,64 +80,56 @@ class ResourceManager(QThread):
                 ram_info = psutil.virtual_memory()
                 total_ram_pct = ram_info.percent
                 remaining_ram = 100 - total_ram_pct
+                
+                # 3. App Specific
+                with self.process.oneshot():
+                    app_cpu = self.process.cpu_percent() / psutil.cpu_count()
+                    app_ram = self.process.memory_percent()
+
+                self.stats = {
+                    "total_cpu": total_cpu,
+                    "total_ram": total_ram_pct,
+                    "app_cpu": app_cpu,
+                    "app_ram": app_ram
+                }
+                self.stats_updated.emit(self.stats)
 
                 critical_reason = None
                 
-                # Check for critical CPU
+                # Safety checks (Critical)
                 if remaining_cpu < 7:
                     critical_reason = f"System CPU critically low ({remaining_cpu:.1f}%)."
-                
-                # Check for critical RAM
                 if remaining_ram < 7:
                     critical_reason = f"System RAM critically low ({remaining_ram:.1f}%)."
 
-                # Logic for pausing/resuming
                 if critical_reason:
                     if not self.is_paused:
                         self.pause_process()
                         self.toast_notification.emit(f"{critical_reason} Pausing transcription...")
                 elif self.is_paused:
-                    # Resume only if both are healthy
                     if remaining_cpu >= 8 and remaining_ram >= 8:
                         self.resume_process()
                         self.toast_notification.emit("System resources available. Resuming transcription.")
 
                 # logic for custom limits / safety rules
                 if not self.is_paused:
-                    # CPU Throttling (via priority)
                     if remaining_cpu < 20:
                         self.process.nice(psutil.IDLE_PRIORITY_CLASS)
                     else:
-                        self._apply_priority() # Restore based on setting
-
-                    # RAM Enforcement (Informational/Warning as we can't easily hard-limit RAM usage of current process)
-                    # "If the remaining RAM is less than 20 %, it will not exceed -7% of the remaining RAM."
-                    # In a real app, this would trigger garbage collection or memory purging.
-                    if remaining_ram < 20:
-                         # We log this state, but hard enforcement in Python is difficult 
-                         # without killing the process or using complex memory management.
-                         pass
+                        self._apply_priority()
 
             except Exception as e:
                 logger.error(f"Resource Manager error: {e}")
             
-            time.sleep(1)
+            time.sleep(0.5)
 
     def pause_process(self):
-        try:
-            logger.info("Suspending process due to high system load.")
-            self.is_paused = True
-            self.resource_paused.emit(True)
-        except Exception as e:
-            logger.error(f"Error pausing: {e}")
+        self.is_paused = True
+        self.resource_paused.emit(True)
 
     def resume_process(self):
-        try:
-            logger.info("Resuming process.")
-            self.is_paused = False
-            self.resource_paused.emit(False)
-        except Exception as e:
-            logger.error(f"Error resuming: {e}")
+        self.is_paused = False
+        self.resource_paused.emit(False)
 
     def stop(self):
         self.running = False
