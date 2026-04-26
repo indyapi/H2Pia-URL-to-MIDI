@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QMessageBox, QDialog, QRadioButton,
     QButtonGroup, QSpinBox, QGraphicsOpacityEffect
 )
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint
+from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint, Signal, Slot
 from .queue_item import QueueItem
 
 class SettingsDialog(QDialog):
@@ -104,6 +104,8 @@ class SettingsDialog(QDialog):
         }
 
 class Toast(QLabel):
+    closed = Signal(object)
+
     def __init__(self, parent, message):
         super().__init__(message, parent)
         self.setAlignment(Qt.AlignCenter)
@@ -111,31 +113,36 @@ class Toast(QLabel):
         self.setStyleSheet("""
             background-color: #1E293B;
             color: #64E8FF;
-            border: 1px solid #2EC1CC;
-            border-radius: 10px;
-            padding: 10px;
+            border: 2px solid #2EC1CC;
+            border-radius: 12px;
+            padding: 12px;
             font-size: 13px;
             font-weight: bold;
         """)
-        self.setFixedWidth(300)
-        self.move((parent.width() - self.width()) // 2, 50)
+        self.setFixedWidth(350)
+        self.setFixedHeight(60)
         
         self.opacity_effect = QGraphicsOpacityEffect(self)
         self.setGraphicsEffect(self.opacity_effect)
         
+        # Initial position (hidden)
         self.show()
         
-        # Fade out
+        # Timer for 5 seconds
         self.timer = QTimer()
-        self.timer.singleShot(4000, self.fade_out)
+        self.timer.singleShot(5000, self.fade_out)
 
     def fade_out(self):
         self.anim = QPropertyAnimation(self.opacity_effect, b"opacity")
-        self.anim.setDuration(1000)
+        self.anim.setDuration(800)
         self.anim.setStartValue(1.0)
         self.anim.setEndValue(0.0)
-        self.anim.finished.connect(self.deleteLater)
+        self.anim.finished.connect(self.on_closed)
         self.anim.start()
+
+    def on_closed(self):
+        self.closed.emit(self)
+        self.deleteLater()
 
 class MainWindow(QMainWindow):
     def __init__(self, queue_manager, resource_manager, config_manager):
@@ -144,6 +151,7 @@ class MainWindow(QMainWindow):
         self.resource_manager = resource_manager
         self.config_manager = config_manager
         self.items = {}
+        self.active_toasts = []
         # Load settings from config_manager
         self.settings = self.config_manager.config
 
@@ -233,7 +241,47 @@ class MainWindow(QMainWindow):
         self.resource_manager.toast_notification.connect(self.show_toast)
 
     def show_toast(self, message):
-        Toast(self, message)
+        toast = Toast(self, message)
+        toast.closed.connect(self.on_toast_closed)
+        self.active_toasts.append(toast)
+        self.reposition_toasts()
+
+    def on_toast_closed(self, toast):
+        if toast in self.active_toasts:
+            self.active_toasts.remove(toast)
+            self.reposition_toasts()
+
+    def reposition_toasts(self):
+        # Position toasts at the bottom center, stacking upwards
+        # Newest at the bottom
+        bottom_margin = 30
+        spacing = 10
+        
+        # Reverse list to have newest at bottom, but user asked: 
+        # "pushing all the old toast to the top" -> newest stays at bottom.
+        # We'll calculate positions from the bottom up.
+        current_y = self.height() - bottom_margin
+        
+        for toast in reversed(self.active_toasts):
+            current_y -= toast.height()
+            target_x = (self.width() - toast.width()) // 2
+            
+            # Animate movement
+            anim = QPropertyAnimation(toast, b"pos")
+            anim.setDuration(300)
+            anim.setStartValue(toast.pos())
+            anim.setEndValue(QPoint(target_x, current_y))
+            anim.setEasingCurve(QEasingCurve.OutCubic)
+            anim.start()
+            
+            # Keep a reference to animation to prevent GC
+            toast.move_anim = anim
+            
+            current_y -= spacing
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.reposition_toasts()
 
     def show_settings(self):
         dialog = SettingsDialog(self, self.settings)

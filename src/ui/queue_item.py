@@ -65,6 +65,8 @@ class QueueItem(QFrame):
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
+        # Initial Orange
+        self.update_progress_style(0)
         self.details_layout.addWidget(self.progress_bar)
         
         self.layout.addLayout(self.details_layout, 1)
@@ -92,11 +94,36 @@ class QueueItem(QFrame):
             pixmap = QPixmap.fromImage(image)
             self.thumbnail.setPixmap(pixmap.scaled(120, 68, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
+    def update_progress_style(self, value):
+        # orange -> yellow -> green -> bright blue
+        color = "#FF8C00" # Orange (0-25)
+        if value > 75:
+            color = "#00BFFF" # Bright Blue (76-100)
+        elif value > 50:
+            color = "#2ECC71" # Green (51-75)
+        elif value > 25:
+            color = "#F1C40F" # Yellow (26-50)
+            
+        self.progress_bar.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: #1E293B;
+                border: none;
+                border-radius: 3px;
+            }}
+            QProgressBar::chunk {{
+                background-color: {color};
+                border_radius: 3px;
+            }}
+        """)
+
     def update_status(self, status, progress):
         self.status_label.setText(status)
         self.progress_bar.setValue(progress)
+        self.update_progress_style(progress)
         
         if status == "Finished":
-            self.progress_bar.setStyleSheet("QProgressBar::chunk { background-color: #2ECC71; }")
+            self.update_progress_style(100) # Ensure blue
         elif "Error" in status:
-            self.progress_bar.setStyleSheet("QProgressBar::chunk { background-color: #E74C3C; }")
+            self.progress_bar.setStyleSheet("""
+                QProgressBar::chunk { background-color: #E74C3C; }
+            """)
