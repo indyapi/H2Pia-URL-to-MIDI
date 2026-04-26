@@ -130,7 +130,7 @@ class QueueItem(QFrame):
             
         self.progress_bar.setStyleSheet(f"""
             QProgressBar {{ background-color: #1E293B; border: none; border-radius: 3px; }}
-            QProgressBar::chunk {{ background-color: {color}; border_radius: 3px; }}
+            QProgressBar::chunk {{ background-color: {color}; border-radius: 3px; }}
         """)
 
     def update_status(self, status, progress):

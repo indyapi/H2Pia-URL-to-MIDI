@@ -13,6 +13,7 @@ class ConfigManager:
             "ram_mode": "default",
             "ram_limit": 50,
             "queue_size_limit": 10,
+            "concurrency_limit": 3,
             "output_dir": "output",
             "theme": "dark"
         }

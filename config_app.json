@@ -3,8 +3,9 @@
     "cpu_limit": 50,
     "ram_mode": "default",
     "ram_limit": 50,
-    "queue_size_limit": 7,
+    "queue_size_limit": 30,
+    "concurrency_limit": 3,
     "output_dir": "output",
     "theme": "dark",
-    "output_format": "MP3"
+    "output_format": "MP4_720P"
 }
