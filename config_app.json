@@ -1,0 +1,8 @@
+{
+    "cpu_mode": "default",
+    "cpu_limit": 50,
+    "ram_mode": "default",
+    "ram_limit": 50,
+    "output_dir": "output",
+    "theme": "dark"
+}

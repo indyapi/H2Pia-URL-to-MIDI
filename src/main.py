@@ -27,7 +27,8 @@ from src.ui.main_window import MainWindow
 from src.core.queue_manager import QueueManager
 from src.services.media import MediaService
 from src.services.transcriber import TranscriptionService
-from src.core.cpu_manager import CpuManager
+from src.core.resource_manager import ResourceManager
+from src.core.config_manager import ConfigManager
 
 from src.core.logger import setup_logging
 import logging
@@ -39,13 +40,27 @@ def main():
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     setup_logging(base_dir)
     logging.info("Starting U2M Application")
-    output_dir = os.path.join(base_dir, "output")
+    
+    # Initialize Config Manager
+    config_path = os.path.join(base_dir, "config_app.json")
+    config_manager = ConfigManager(config_path)
+    
+    output_dir = os.path.join(base_dir, config_manager.get("output_dir", "output"))
     temp_dir = os.path.join(base_dir, "temp")
     qss_path = os.path.join(base_dir, "assets", "styles", "dark.qss")
     
-    # Initialize CPU Manager
-    cpu_manager = CpuManager()
-    cpu_manager.start()
+    # Initialize Resource Manager (CPU/RAM)
+    resource_manager = ResourceManager()
+    # Apply settings from config
+    resource_manager.set_cpu_settings(
+        config_manager.get("cpu_mode"), 
+        config_manager.get("cpu_limit")
+    )
+    resource_manager.set_ram_settings(
+        config_manager.get("ram_mode"), 
+        config_manager.get("ram_limit")
+    )
+    resource_manager.start()
     
     # Load Thai-compatible font for 100% language support
     font_dir = os.path.join(base_dir, "assets", "font", "Sarabun")
@@ -78,14 +93,14 @@ def main():
             app.setStyleSheet(f.read())
             
     # 4. Launch UI
-    window = MainWindow(queue_manager, cpu_manager, config={})
+    window = MainWindow(queue_manager, resource_manager, config_manager)
     window.show()
     
     exit_code = app.exec()
     
     # Cleanup
-    cpu_manager.stop()
-    cpu_manager.wait()
+    resource_manager.stop()
+    resource_manager.wait()
     
     sys.exit(exit_code)
 

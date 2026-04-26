@@ -13,46 +13,78 @@ class SettingsDialog(QDialog):
     def __init__(self, parent=None, current_settings=None):
         super().__init__(parent)
         self.setWindowTitle("Settings")
-        self.setFixedWidth(400)
-        self.settings = current_settings or {"mode": "default", "limit": 50}
+        self.setFixedWidth(450)
+        self.settings = current_settings or {
+            "cpu_mode": "default", "cpu_limit": 50,
+            "ram_mode": "default", "ram_limit": 50
+        }
         self.init_ui()
 
     def init_ui(self):
         layout = QVBoxLayout(self)
         
+        # --- CPU Settings ---
         layout.addWidget(QLabel("<b>CPU Limit Mode</b>"))
+        self.cpu_group = QButtonGroup(self)
         
-        self.group = QButtonGroup(self)
+        self.cpu_default_rb = QRadioButton("Default (Background / Eco Mode)")
+        self.cpu_group.addButton(self.cpu_default_rb)
+        layout.addWidget(self.cpu_default_rb)
         
-        self.default_rb = QRadioButton("Default (Background / Eco Mode)")
-        self.default_rb.setToolTip("Will not compete for CPU. Uses remaining capacity. Safety limits applied.")
-        self.group.addButton(self.default_rb)
-        layout.addWidget(self.default_rb)
-        
-        default_desc = QLabel("Uses idle priority. Limits usage if remaining CPU < 20%.")
-        default_desc.setStyleSheet("color: #9DB3D1; font-size: 11px; margin-left: 20px; margin-bottom: 10px;")
-        layout.addWidget(default_desc)
+        cpu_default_desc = QLabel("Uses idle priority. Limits usage if remaining CPU < 20%.")
+        cpu_default_desc.setStyleSheet("color: #9DB3D1; font-size: 11px; margin-left: 20px;")
+        layout.addWidget(cpu_default_desc)
 
-        self.custom_rb = QRadioButton("Custom CPU Limit (%)")
-        self.group.addButton(self.custom_rb)
-        layout.addWidget(self.custom_rb)
+        self.cpu_custom_rb = QRadioButton("Custom CPU Limit (%)")
+        self.cpu_group.addButton(self.cpu_custom_rb)
+        layout.addWidget(self.cpu_custom_rb)
         
-        custom_layout = QHBoxLayout()
-        custom_layout.setContentsMargins(20, 0, 0, 10)
-        self.limit_spin = QSpinBox()
-        self.limit_spin.setRange(1, 100)
-        self.limit_spin.setValue(self.settings.get("limit", 50))
-        custom_layout.addWidget(QLabel("Max CPU Lock:"))
-        custom_layout.addWidget(self.limit_spin)
-        custom_layout.addWidget(QLabel("%"))
-        custom_layout.addStretch()
-        layout.addLayout(custom_layout)
+        cpu_custom_layout = QHBoxLayout()
+        cpu_custom_layout.setContentsMargins(20, 0, 0, 10)
+        self.cpu_limit_spin = QSpinBox()
+        self.cpu_limit_spin.setRange(1, 100)
+        self.cpu_limit_spin.setValue(self.settings.get("cpu_limit", 50))
+        cpu_custom_layout.addWidget(QLabel("Max CPU Lock:"))
+        cpu_custom_layout.addWidget(self.cpu_limit_spin)
+        cpu_custom_layout.addWidget(QLabel("%"))
+        cpu_custom_layout.addStretch()
+        layout.addLayout(cpu_custom_layout)
 
-        if self.settings["mode"] == "default":
-            self.default_rb.setChecked(True)
-        else:
-            self.custom_rb.setChecked(True)
+        # --- RAM Settings ---
+        layout.addWidget(QLabel("<b>RAM Restricted Mode</b>"))
+        self.ram_group = QButtonGroup(self)
+        
+        self.ram_default_rb = QRadioButton("Default (Eco Mode)")
+        self.ram_group.addButton(self.ram_default_rb)
+        layout.addWidget(self.ram_default_rb)
+        
+        ram_default_desc = QLabel("Will not compete for RAM. Safety limits applied if remaining RAM < 20%.")
+        ram_default_desc.setStyleSheet("color: #9DB3D1; font-size: 11px; margin-left: 20px;")
+        layout.addWidget(ram_default_desc)
 
+        self.ram_custom_rb = QRadioButton("Custom RAM Limit (%)")
+        self.ram_group.addButton(self.ram_custom_rb)
+        layout.addWidget(self.ram_custom_rb)
+        
+        ram_custom_layout = QHBoxLayout()
+        ram_custom_layout.setContentsMargins(20, 0, 0, 10)
+        self.ram_limit_spin = QSpinBox()
+        self.ram_limit_spin.setRange(1, 100)
+        self.ram_limit_spin.setValue(self.settings.get("ram_limit", 50))
+        ram_custom_layout.addWidget(QLabel("Max RAM Lock:"))
+        ram_custom_layout.addWidget(self.ram_limit_spin)
+        ram_custom_layout.addWidget(QLabel("%"))
+        ram_custom_layout.addStretch()
+        layout.addLayout(ram_custom_layout)
+
+        # Set current values
+        if self.settings.get("cpu_mode") == "default": self.cpu_default_rb.setChecked(True)
+        else: self.cpu_custom_rb.setChecked(True)
+        
+        if self.settings.get("ram_mode") == "default": self.ram_default_rb.setChecked(True)
+        else: self.ram_custom_rb.setChecked(True)
+
+        layout.addSpacing(10)
         buttons = QHBoxLayout()
         save_btn = QPushButton("Save Settings")
         save_btn.setObjectName("Primary")
@@ -65,8 +97,10 @@ class SettingsDialog(QDialog):
 
     def get_settings(self):
         return {
-            "mode": "default" if self.default_rb.isChecked() else "custom",
-            "limit": self.limit_spin.value()
+            "cpu_mode": "default" if self.cpu_default_rb.isChecked() else "custom",
+            "cpu_limit": self.cpu_limit_spin.value(),
+            "ram_mode": "default" if self.ram_default_rb.isChecked() else "custom",
+            "ram_limit": self.ram_limit_spin.value()
         }
 
 class Toast(QLabel):
@@ -104,13 +138,14 @@ class Toast(QLabel):
         self.anim.start()
 
 class MainWindow(QMainWindow):
-    def __init__(self, queue_manager, cpu_manager, config):
+    def __init__(self, queue_manager, resource_manager, config_manager):
         super().__init__()
         self.queue_manager = queue_manager
-        self.cpu_manager = cpu_manager
-        self.config = config
+        self.resource_manager = resource_manager
+        self.config_manager = config_manager
         self.items = {}
-        self.settings = {"mode": "default", "limit": 50}
+        # Load settings from config_manager
+        self.settings = self.config_manager.config
 
         self.setWindowTitle("U2M - YouTube to MIDI")
         self.resize(800, 600)
@@ -194,8 +229,8 @@ class MainWindow(QMainWindow):
         self.queue_manager.task_error.connect(self.on_task_error)
         self.queue_manager.task_finished.connect(self.on_task_finished)
         
-        # CPU Manager signals
-        self.cpu_manager.toast_notification.connect(self.show_toast)
+        # Resource Manager signals
+        self.resource_manager.toast_notification.connect(self.show_toast)
 
     def show_toast(self, message):
         Toast(self, message)
@@ -203,8 +238,16 @@ class MainWindow(QMainWindow):
     def show_settings(self):
         dialog = SettingsDialog(self, self.settings)
         if dialog.exec():
-            self.settings = dialog.get_settings()
-            self.cpu_manager.set_settings(self.settings["mode"], self.settings["limit"])
+            new_settings = dialog.get_settings()
+            self.settings.update(new_settings)
+            
+            # Update Resource Manager
+            self.resource_manager.set_cpu_settings(self.settings["cpu_mode"], self.settings["cpu_limit"])
+            self.resource_manager.set_ram_settings(self.settings["ram_mode"], self.settings["ram_limit"])
+            
+            # Save to config file
+            self.config_manager.save_config(self.settings)
+            
             self.show_toast("Settings saved and applied.")
 
     def add_url(self):

@@ -29,6 +29,7 @@ class TranscriptionWorker(QRunnable):
     @Slot()
     def run(self):
         logger.info(f"Worker started: {self.item_id}")
+        audio_path = None
         try:
             # 1. Fetch Metadata
             logger.info(f"[{self.item_id}] Fetching metadata...")
@@ -36,10 +37,8 @@ class TranscriptionWorker(QRunnable):
             meta = self.media_service.get_metadata(self.url)
             self.signals.metadata.emit(self.item_id, meta)
             
-            # Sanitize title while supporting all languages (keeping Thai vowels/tones)
-            # Remove illegal Windows filename characters: < > : " / \ | ? *
+            # Sanitize title
             safe_title = re.sub(r'[<>:"/\\|?*]', '', meta['title']).strip()
-            # Handle potential empty title after sanitization
             if not safe_title:
                 safe_title = f"video_{self.item_id}"
                 
@@ -56,10 +55,11 @@ class TranscriptionWorker(QRunnable):
             midi_path = os.path.join(self.output_dir, f"{safe_title}.mid")
             self.transcriber_service.transcribe(audio_path, midi_path)
             
-            # 4. Cleanup
-            logger.info(f"[{self.item_id}] Cleaning up...")
-            if os.path.exists(audio_path):
+            # 4. Immediate Cleanup after Success
+            if audio_path and os.path.exists(audio_path):
+                logger.info(f"[{self.item_id}] Deleting temp audio: {audio_path}")
                 os.remove(audio_path)
+                audio_path = None # Mark as deleted
                 
             logger.info(f"[{self.item_id}] Finished successfully.")
             self.signals.progress.emit(self.item_id, "Finished", 100)
@@ -69,3 +69,11 @@ class TranscriptionWorker(QRunnable):
             logger.error(f"[{self.item_id}] Worker failed: {str(e)}")
             logger.error(traceback.format_exc())
             self.signals.error.emit(self.item_id, str(e))
+        finally:
+            # Ensure cleanup happens even on failure
+            if audio_path and os.path.exists(audio_path):
+                try:
+                    logger.info(f"[{self.item_id}] Cleaning up temp file after error.")
+                    os.remove(audio_path)
+                except:
+                    pass
