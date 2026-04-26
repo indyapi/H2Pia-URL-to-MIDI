@@ -1,4 +1,5 @@
 import os
+import re
 import traceback
 import logging
 from PySide6.QtCore import QRunnable, Slot, QObject, Signal
@@ -35,7 +36,13 @@ class TranscriptionWorker(QRunnable):
             meta = self.yt_service.get_metadata(self.url)
             self.signals.metadata.emit(self.item_id, meta)
             
-            safe_title = "".join([c for c in meta['title'] if c.isalnum() or c in (' ', '.', '_')]).rstrip()
+            # Sanitize title while supporting all languages (keeping Thai vowels/tones)
+            # Remove illegal Windows filename characters: < > : " / \ | ? *
+            safe_title = re.sub(r'[<>:"/\\|?*]', '', meta['title']).strip()
+            # Handle potential empty title after sanitization
+            if not safe_title:
+                safe_title = f"video_{self.item_id}"
+                
             audio_filename = f"{self.item_id}_{safe_title}"
             
             # 2. Download Audio

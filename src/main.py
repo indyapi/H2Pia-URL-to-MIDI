@@ -2,6 +2,7 @@ import sys
 import os
 import shutil
 from pathlib import Path
+from PySide6.QtGui import QFontDatabase
 
 def setup_ffmpeg():
     """Ensures ffmpeg/ffprobe are in PATH."""
@@ -40,6 +41,16 @@ def main():
     output_dir = os.path.join(base_dir, "output")
     temp_dir = os.path.join(base_dir, "temp")
     qss_path = os.path.join(base_dir, "assets", "styles", "dark.qss")
+    
+    # Load Thai-compatible font for 100% language support
+    font_dir = os.path.join(base_dir, "assets", "font", "Sarabun")
+    if os.path.exists(font_dir):
+        for font_file in os.listdir(font_dir):
+            if font_file.endswith(".ttf"):
+                QFontDatabase.addApplicationFont(os.path.join(font_dir, font_file))
+        
+        # Set Sarabun as default font
+        app.setFont("Sarabun")
     
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
