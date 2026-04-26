@@ -3,6 +3,7 @@ import re
 import traceback
 import logging
 from PySide6.QtCore import QRunnable, Slot, QObject, Signal
+from ..services.transcriber import TranscriptionService
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,7 @@ class WorkerSignals(QObject):
     error = Signal(str, str)    # id, error message
     progress = Signal(str, str, int) # id, status_text, progress_value
     metadata = Signal(str, dict) # id, metadata_dict
+    service_initialized = Signal(object) # service instance
 
 class TranscriptionWorker(QRunnable):
     def __init__(self, item_id, url, media_service, transcriber_service, output_dir):
@@ -50,6 +52,13 @@ class TranscriptionWorker(QRunnable):
             audio_path = self.media_service.download_audio(self.url, audio_filename)
             
             # 3. Transcribe
+            # Lazy init service in background to avoid UI freeze
+            if self.transcriber_service is None:
+                logger.info(f"[{self.item_id}] Initializing AI Model in background...")
+                self.signals.progress.emit(self.item_id, "Initializing AI Model (once)...", 40)
+                self.transcriber_service = TranscriptionService(device='cpu')
+                self.signals.service_initialized.emit(self.transcriber_service)
+
             logger.info(f"[{self.item_id}] Transcribing...")
             self.signals.progress.emit(self.item_id, "Transcribing (this may take a while)...", 60)
             midi_path = os.path.join(self.output_dir, f"{safe_title}.mid")

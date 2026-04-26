@@ -10,23 +10,31 @@ warnings.filterwarnings("ignore", category=DeprecationWarning, module="pkg_resou
 # Also handle the specific setuptools warning if it comes as a UserWarning
 warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated as an API.*")
 
-def setup_ffmpeg():
-    """Ensures ffmpeg/ffprobe are in PATH."""
+def setup_ffmpeg(config_manager=None):
+    """Ensures ffmpeg/ffprobe are in PATH. Caches result for speed."""
     if shutil.which("ffmpeg") and shutil.which("ffprobe"):
         return True
     
+    # Check cache
+    if config_manager:
+        cached_path = config_manager.get("ffmpeg_path")
+        if cached_path and os.path.exists(cached_path):
+            os.environ["PATH"] = cached_path + os.pathsep + os.environ["PATH"]
+            if shutil.which("ffmpeg"):
+                return True
+
     # Common winget location
     winget_base = Path(os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Packages"))
     if winget_base.exists():
         for package_dir in winget_base.glob("Gyan.FFmpeg*"):
             for bin_dir in package_dir.rglob("bin"):
                 if (bin_dir / "ffmpeg.exe").exists():
-                    os.environ["PATH"] = str(bin_dir) + os.pathsep + os.environ["PATH"]
+                    bin_path = str(bin_dir)
+                    os.environ["PATH"] = bin_path + os.pathsep + os.environ["PATH"]
+                    if config_manager:
+                        config_manager.save_config({"ffmpeg_path": bin_path})
                     return True
     return False
-
-# Setup ffmpeg before importing services that might depend on it
-setup_ffmpeg()
 
 from PySide6.QtWidgets import QApplication
 from src.ui.main_window import MainWindow
@@ -47,9 +55,12 @@ def main():
     setup_logging(base_dir)
     logging.info("Starting U2M Application")
     
-    # Initialize Config Manager
+    # Initialize Config Manager early
     config_path = os.path.join(base_dir, "config_app.json")
     config_manager = ConfigManager(config_path)
+    
+    # Optimized ffmpeg setup
+    setup_ffmpeg(config_manager)
     
     output_dir = os.path.join(base_dir, config_manager.get("output_dir", "output"))
     temp_dir = os.path.join(base_dir, "temp")
@@ -57,7 +68,6 @@ def main():
     
     # Initialize Resource Manager (CPU/RAM)
     resource_manager = ResourceManager()
-    # Apply settings from config
     resource_manager.set_cpu_settings(
         config_manager.get("cpu_mode"), 
         config_manager.get("cpu_limit")
@@ -68,14 +78,13 @@ def main():
     )
     resource_manager.start()
     
-    # Load Thai-compatible font for 100% language support
+    # Load Thai-compatible font
     font_dir = os.path.join(base_dir, "assets", "font", "Sarabun")
     if os.path.exists(font_dir):
-        for font_file in os.listdir(font_dir):
-            if font_file.endswith(".ttf"):
-                QFontDatabase.addApplicationFont(os.path.join(font_dir, font_file))
-        
-        # Set Sarabun as default font
+        # We only need the regular font for most things, loading all is slow
+        font_path = os.path.join(font_dir, "Sarabun-Regular.ttf")
+        if os.path.exists(font_path):
+            QFontDatabase.addApplicationFont(font_path)
         app.setFont("Sarabun")
     
     if not os.path.exists(output_dir):
@@ -83,7 +92,6 @@ def main():
     
     # 2. Initialize Services
     media_service = MediaService(temp_dir=temp_dir)
-    # We pass None initially and will initialize it when needed or in background
     transcriber_service = None 
     
     queue_manager = QueueManager(

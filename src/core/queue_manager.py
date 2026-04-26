@@ -28,33 +28,38 @@ class QueueManager(QObject):
         """Creates and starts a new transcription worker."""
         logger.info(f"Adding task to queue: {url} (ID: {item_id})")
         
-        # Lazy initialization of transcriber service
-        if self.transcriber_service is None:
-            logger.info("First task added. Initializing TranscriptionService...")
-            self.task_progress.emit(item_id, "Initializing AI Model...", 0)
-            try:
-                self.transcriber_service = TranscriptionService(device='cpu')
-            except Exception as e:
-                logger.error(f"Failed to initialize TranscriptionService: {e}")
-                self.handle_error(item_id, f"Model Init Failed: {e}")
-                return
+        # We now move the lazy initialization into the Worker thread itself 
+        # or handle it differently to avoid UI freeze.
+        # But TranscriptionWorker needs the service.
+        # Strategy: Pass the class/params and let the worker init it if None.
 
         worker = TranscriptionWorker(
             item_id, url, 
             self.media_service, 
-            self.transcriber_service, 
+            self.transcriber_service, # Might be None
             self.output_dir
         )
         
-        # Connect worker signals to QueueManager signals
+        # Connect worker signals
         worker.signals.progress.connect(self.task_progress.emit)
         worker.signals.finished.connect(self.handle_finished)
         worker.signals.error.connect(self.handle_error)
         worker.signals.metadata.connect(self.task_metadata.emit)
+        # Add a signal for when the worker initializes the global service
+        if hasattr(worker.signals, 'service_initialized'):
+            worker.signals.service_initialized.connect(self.on_service_initialized)
         
         self.active_tasks[item_id] = worker
         self.threadpool.start(worker)
         self.task_started.emit(item_id)
+
+    def on_service_initialized(self, service):
+        """Global service is shared once the first worker creates it."""
+        if self.transcriber_service is None:
+            self.transcriber_service = service
+            # Update all existing workers with the new service
+            for worker in self.active_tasks.values():
+                worker.transcriber_service = service
 
     def handle_finished(self, item_id):
         logger.info(f"Task finished: {item_id}")

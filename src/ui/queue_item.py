@@ -2,9 +2,29 @@ from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, 
     QProgressBar, QPushButton, QFrame
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QThread, Slot
 from PySide6.QtGui import QPixmap, QImage
 import requests
+import logging
+
+logger = logging.getLogger(__name__)
+
+class ThumbnailWorker(QThread):
+    finished = Signal(QImage)
+
+    def __init__(self, url):
+        super().__init__()
+        self.url = url
+
+    def run(self):
+        try:
+            response = requests.get(self.url, stream=True, timeout=5)
+            if response.status_code == 200:
+                image = QImage()
+                image.loadFromData(response.content)
+                self.finished.emit(image)
+        except Exception as e:
+            logger.error(f"Failed to download thumbnail: {e}")
 
 class QueueItem(QFrame):
     remove_requested = Signal(str) # item_id
@@ -14,6 +34,7 @@ class QueueItem(QFrame):
         self.item_id = item_id
         self.url = url
         self.setObjectName("Card") # Matches QSS
+        self.thumb_worker = None
         
         self.init_ui()
 
@@ -58,18 +79,18 @@ class QueueItem(QFrame):
     def update_metadata(self, meta):
         self.title_label.setText(meta.get('title', 'Unknown Title'))
         
-        # Load thumbnail asynchronously (simplified here for brevity)
+        # Load thumbnail asynchronously
         thumb_url = meta.get('thumbnail')
         if thumb_url:
-            try:
-                response = requests.get(thumb_url, stream=True, timeout=5)
-                if response.status_code == 200:
-                    image = QImage()
-                    image.loadFromData(response.content)
-                    pixmap = QPixmap.fromImage(image)
-                    self.thumbnail.setPixmap(pixmap.scaled(120, 68, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            except:
-                pass
+            self.thumb_worker = ThumbnailWorker(thumb_url)
+            self.thumb_worker.finished.connect(self.on_thumbnail_downloaded)
+            self.thumb_worker.start()
+
+    @Slot(QImage)
+    def on_thumbnail_downloaded(self, image):
+        if not image.isNull():
+            pixmap = QPixmap.fromImage(image)
+            self.thumbnail.setPixmap(pixmap.scaled(120, 68, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
     def update_status(self, status, progress):
         self.status_label.setText(status)
