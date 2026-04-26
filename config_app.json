@@ -7,5 +7,5 @@
     "concurrency_limit": 3,
     "output_dir": "output",
     "theme": "dark",
-    "output_format": "MP4_720P"
+    "output_format": "MP3"
 }

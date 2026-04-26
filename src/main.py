@@ -2,9 +2,14 @@ import sys
 import os
 import shutil
 import warnings
+import multiprocessing
 from pathlib import Path
 from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import QApplication
+
+# Windows fix for multiprocessing
+if __name__ == "__main__":
+    multiprocessing.freeze_support()
 
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="pkg_resources")
 warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated as an API.*")
@@ -61,9 +66,11 @@ def main():
     if not os.path.exists(output_dir): os.makedirs(output_dir)
     
     media_service = MediaService(temp_dir=temp_dir)
+    transcriber_service = TranscriptionService()
+    
     queue_manager = QueueManager(
         media_service=media_service,
-        transcriber_service=None,
+        transcriber_service=transcriber_service,
         output_dir=output_dir,
         resource_manager=resource_manager,
         max_concurrent=config_manager.get("concurrency_limit", 3)
