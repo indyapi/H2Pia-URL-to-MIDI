@@ -21,7 +21,6 @@ class MediaService:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
                 info = ydl.extract_info(url, download=False)
-                logger.info(f"Metadata fetched: {info.get('title')}")
                 return {
                     'title': info.get('title', 'Unknown Title'),
                     'thumbnail': info.get('thumbnail'),
@@ -29,34 +28,82 @@ class MediaService:
                     'id': info.get('id')
                 }
             except Exception as e:
-                logger.error(f"Failed to fetch metadata for {url}: {str(e)}")
+                logger.error(f"Failed to fetch metadata: {str(e)}")
                 raise Exception(f"Failed to fetch metadata: {str(e)}")
 
-    def download_audio(self, url, output_filename):
-        """Downloads audio as WAV 16kHz Mono."""
-        output_path = os.path.join(self.temp_dir, f"{output_filename}.wav")
-        logger.info(f"Downloading audio from {url} to {output_path}")
+    def get_unique_path(self, folder, filename, extension):
+        """Generates a unique path by adding v2, v3... if file exists."""
+        base_path = os.path.join(folder, f"{filename}.{extension}")
+        if not os.path.exists(base_path):
+            return base_path
+        
+        counter = 2
+        while True:
+            new_path = os.path.join(folder, f"{filename} v{counter}.{extension}")
+            if not os.path.exists(new_path):
+                return new_path
+            counter += 1
+
+    def download(self, url, output_path_no_ext, format_type):
+        """
+        Downloads media based on format_type.
+        """
+        logger.info(f"Downloading {format_type} from {url}")
+        
         ydl_opts = {
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'wav',
-                'preferredquality': '192',
-            }],
-            'postprocessor_args': [
-                '-ar', '16000',
-                '-ac', '1',
-            ],
-            'outtmpl': os.path.join(self.temp_dir, output_filename),
             'quiet': True,
             'no_warnings': True,
+            'outtmpl': output_path_no_ext,
+        }
+
+        # --- AUDIO FORMATS ---
+        audio_map = {
+            'OPUS': 'opus', 'AAC': 'm4a', 'MP3': 'mp3', 
+            'FLAC': 'flac', 'WAV': 'wav'
         }
         
+        if format_type in audio_map:
+            codec = audio_map[format_type]
+            ydl_opts.update({
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': codec,
+                    'preferredquality': '192',
+                }],
+            })
+        
+        # --- VIDEO FORMATS ---
+        elif format_type == 'MP4_FULL':
+            ydl_opts.update({'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'})
+        elif format_type == 'MP4_1080P':
+            ydl_opts.update({'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best'})
+        elif format_type == 'MP4_720P':
+            ydl_opts.update({'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best'})
+        elif format_type == 'MP4_VIDEO_ONLY':
+            ydl_opts.update({'format': 'bestvideo[ext=mp4]'})
+            
+        # --- MIDI MODE ---
+        elif format_type == 'MIDI':
+            ydl_opts.update({
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'wav',
+                    'preferredquality': '192',
+                }],
+                'postprocessor_args': ['-ar', '16000', '-ac', '1'],
+            })
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
-                ydl.download([url])
-                logger.info(f"Audio downloaded: {output_path}")
-                return output_path
+                info = ydl.extract_info(url, download=True)
+                actual_filename = ydl.prepare_filename(info)
+                # handle extension changes from postprocessors
+                if 'postprocessors' in ydl_opts:
+                    ext = ydl_opts['postprocessors'][0]['preferredcodec']
+                    actual_filename = os.path.splitext(actual_filename)[0] + f".{ext}"
+                return actual_filename
             except Exception as e:
-                logger.error(f"Download failed for {url}: {str(e)}")
+                logger.error(f"Download failed: {str(e)}")
                 raise Exception(f"Download failed: {str(e)}")

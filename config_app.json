@@ -5,5 +5,6 @@
     "ram_limit": 50,
     "queue_size_limit": 7,
     "output_dir": "output",
-    "theme": "dark"
+    "theme": "dark",
+    "output_format": "MIDI"
 }

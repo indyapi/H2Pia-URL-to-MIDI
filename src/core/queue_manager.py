@@ -19,6 +19,7 @@ class QueueManager(QObject):
         self.transcriber_service = transcriber_service
         self.output_dir = output_dir
         self.resource_manager = resource_manager
+        self.output_format = "MIDI" # Default
         
         self.threadpool = QThreadPool()
         self.threadpool.setMaxThreadCount(max_concurrent)
@@ -29,9 +30,13 @@ class QueueManager(QObject):
         # Check resources periodically to start pending tasks
         self.queue_timer = QTimer()
         self.queue_timer.timeout.connect(self.process_queue)
-        self.queue_timer.start(2000) # Every 2 seconds
+        self.queue_timer.start(2000) 
         
         logger.info(f"QueueManager initialized with max_concurrent={max_concurrent}")
+
+    def set_output_format(self, fmt):
+        self.output_format = fmt
+        logger.info(f"QueueManager format set to: {fmt}")
 
     def add_task(self, item_id, url):
         """Adds a task to the pending list."""
@@ -53,7 +58,6 @@ class QueueManager(QObject):
         can_start, reason = self.resource_manager.can_start_task()
         
         if not can_start:
-            # Update status for all pending tasks to show why they are waiting
             for item_id, _ in self.pending_tasks:
                 self.task_progress.emit(item_id, f"Waiting: {reason}", 0)
             return
@@ -65,7 +69,8 @@ class QueueManager(QObject):
             item_id, url, 
             self.media_service, 
             self.transcriber_service,
-            self.output_dir
+            self.output_dir,
+            self.output_format # Pass the format
         )
         
         worker.signals.progress.connect(self.task_progress.emit)
@@ -89,7 +94,6 @@ class QueueManager(QObject):
         if item_id in self.active_tasks:
             del self.active_tasks[item_id]
         self.task_finished.emit(item_id)
-        # Check if we can start next
         self.process_queue()
 
     def handle_error(self, item_id, error_msg):

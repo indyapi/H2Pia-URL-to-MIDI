@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QLineEdit, QPushButton, QScrollArea, QLabel, 
     QFileDialog, QMessageBox, QDialog, QRadioButton,
-    QButtonGroup, QSpinBox, QGraphicsOpacityEffect
+    QButtonGroup, QSpinBox, QGraphicsOpacityEffect, QComboBox
 )
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint, Signal, Slot
 from .queue_item import QueueItem
@@ -23,23 +23,17 @@ class SettingsDialog(QDialog):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        
-        # --- CPU Settings ---
         layout.addWidget(QLabel("<b>CPU Limit Mode</b>"))
         self.cpu_group = QButtonGroup(self)
-        
         self.cpu_default_rb = QRadioButton("Default (Background / Eco Mode)")
         self.cpu_group.addButton(self.cpu_default_rb)
         layout.addWidget(self.cpu_default_rb)
-        
         cpu_default_desc = QLabel("Uses idle priority. Limits usage if remaining CPU < 20%.")
         cpu_default_desc.setStyleSheet("color: #9DB3D1; font-size: 11px; margin-left: 20px;")
         layout.addWidget(cpu_default_desc)
-
         self.cpu_custom_rb = QRadioButton("Custom CPU Limit (%)")
         self.cpu_group.addButton(self.cpu_custom_rb)
         layout.addWidget(self.cpu_custom_rb)
-        
         cpu_custom_layout = QHBoxLayout()
         cpu_custom_layout.setContentsMargins(20, 0, 0, 10)
         self.cpu_limit_spin = QSpinBox()
@@ -50,23 +44,17 @@ class SettingsDialog(QDialog):
         cpu_custom_layout.addWidget(QLabel("%"))
         cpu_custom_layout.addStretch()
         layout.addLayout(cpu_custom_layout)
-
-        # --- RAM Settings ---
         layout.addWidget(QLabel("<b>RAM Restricted Mode</b>"))
         self.ram_group = QButtonGroup(self)
-        
         self.ram_default_rb = QRadioButton("Default (Eco Mode)")
         self.ram_group.addButton(self.ram_default_rb)
         layout.addWidget(self.ram_default_rb)
-        
-        ram_default_desc = QLabel("Will not compete for RAM. Safety limits applied if remaining RAM < 20%.")
+        ram_default_desc = QLabel("Safety limits applied if remaining RAM < 20%.")
         ram_default_desc.setStyleSheet("color: #9DB3D1; font-size: 11px; margin-left: 20px;")
         layout.addWidget(ram_default_desc)
-
         self.ram_custom_rb = QRadioButton("Custom RAM Limit (%)")
         self.ram_group.addButton(self.ram_custom_rb)
         layout.addWidget(self.ram_custom_rb)
-        
         ram_custom_layout = QHBoxLayout()
         ram_custom_layout.setContentsMargins(20, 0, 0, 10)
         self.ram_limit_spin = QSpinBox()
@@ -77,8 +65,6 @@ class SettingsDialog(QDialog):
         ram_custom_layout.addWidget(QLabel("%"))
         ram_custom_layout.addStretch()
         layout.addLayout(ram_custom_layout)
-
-        # --- Queue Settings ---
         layout.addWidget(QLabel("<b>Queue Settings</b>"))
         queue_layout = QHBoxLayout()
         queue_layout.addWidget(QLabel("Max Concurrent Queue Size:"))
@@ -88,14 +74,10 @@ class SettingsDialog(QDialog):
         queue_layout.addWidget(self.queue_limit_spin)
         queue_layout.addStretch()
         layout.addLayout(queue_layout)
-
-        # Set current values
         if self.settings.get("cpu_mode") == "default": self.cpu_default_rb.setChecked(True)
         else: self.cpu_custom_rb.setChecked(True)
-        
         if self.settings.get("ram_mode") == "default": self.ram_default_rb.setChecked(True)
         else: self.ram_custom_rb.setChecked(True)
-
         layout.addSpacing(10)
         buttons = QHBoxLayout()
         save_btn = QPushButton("Save Settings")
@@ -118,41 +100,29 @@ class SettingsDialog(QDialog):
 
 class Toast(QLabel):
     closed = Signal(object)
-
     def __init__(self, parent, message):
         super().__init__(message, parent)
         self.setAlignment(Qt.AlignCenter)
         self.setWordWrap(True)
         self.setStyleSheet("""
-            background-color: #1E293B;
-            color: #64E8FF;
-            border: 2px solid #2EC1CC;
-            border-radius: 12px;
-            padding: 12px;
-            font-size: 13px;
-            font-weight: bold;
+            background-color: #1E293B; color: #64E8FF;
+            border: 2px solid #2EC1CC; border-radius: 12px;
+            padding: 12px; font-size: 13px; font-weight: bold;
         """)
         self.setFixedWidth(350)
         self.setFixedHeight(60)
-        
         self.opacity_effect = QGraphicsOpacityEffect(self)
         self.opacity_effect.setOpacity(0)
         self.setGraphicsEffect(self.opacity_effect)
-        
         self.show()
-        
-        # Entrance Fade-in
         self.fade_in_anim = QPropertyAnimation(self.opacity_effect, b"opacity")
         self.fade_in_anim.setDuration(400)
         self.fade_in_anim.setStartValue(0.0)
         self.fade_in_anim.setEndValue(1.0)
         self.fade_in_anim.setEasingCurve(QEasingCurve.OutCubic)
         self.fade_in_anim.start()
-        
-        # Timer for 5 seconds
         self.timer = QTimer()
         self.timer.singleShot(5000, self.fade_out)
-
     def fade_out(self):
         self.anim = QPropertyAnimation(self.opacity_effect, b"opacity")
         self.anim.setDuration(800)
@@ -160,7 +130,6 @@ class Toast(QLabel):
         self.anim.setEndValue(0.0)
         self.anim.finished.connect(self.on_closed)
         self.anim.start()
-
     def on_closed(self):
         self.closed.emit(self)
         self.deleteLater()
@@ -173,14 +142,14 @@ class MainWindow(QMainWindow):
         self.config_manager = config_manager
         self.items = {}
         self.active_toasts = []
-        # Load settings from config_manager
         self.settings = self.config_manager.config
-
         self.setWindowTitle("U2M - YouTube to MIDI")
-        self.resize(800, 650)
-        
+        self.resize(900, 650)
         self.init_ui()
         self.connect_signals()
+        fmt = self.settings.get("output_format", "MIDI")
+        idx = self.format_dropdown.findData(fmt)
+        if idx >= 0: self.format_dropdown.setCurrentIndex(idx)
 
     def init_ui(self):
         central_widget = QWidget()
@@ -188,120 +157,121 @@ class MainWindow(QMainWindow):
         main_layout = QVBoxLayout(central_widget)
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(15)
-
-        # Header
         header_layout = QHBoxLayout()
-        header = QLabel("U2M: Piano Transcription")
+        header = QLabel("U2M: Universal Media Converter")
         header.setObjectName("Header")
         header.setStyleSheet("font-size: 24px;")
         header_layout.addWidget(header)
-        
         header_layout.addStretch()
-        
-        self.settings_btn = QPushButton("⚙") # Gear icon
+        self.settings_btn = QPushButton("⚙")
         self.settings_btn.setFixedSize(40, 40)
         self.settings_btn.setStyleSheet("font-size: 20px; padding: 0;")
         self.settings_btn.clicked.connect(self.show_settings)
         header_layout.addWidget(self.settings_btn)
-        
         main_layout.addLayout(header_layout)
-
-        # Input Area
         input_layout = QHBoxLayout()
         self.url_input = QLineEdit()
-        self.url_input.setPlaceholderText("Paste video or audio URL here (YouTube, TikTok, SoundCloud, etc.)...")
+        self.url_input.setPlaceholderText("Paste URL here...")
         self.url_input.setFixedHeight(40)
         self.url_input.returnPressed.connect(self.add_url)
         input_layout.addWidget(self.url_input)
-
+        
+        # Categorized Format Dropdown
+        self.format_dropdown = QComboBox()
+        self.format_dropdown.setFixedHeight(40)
+        self.format_dropdown.setFixedWidth(200)
+        self.format_dropdown.setStyleSheet("""
+            QComboBox { padding-left: 10px; font-weight: bold; }
+            QComboBox QAbstractItemView { selection-background-color: #2EC1CC; }
+        """)
+        
+        # Section: Piano Transcription
+        self.add_combo_header("--- PIANO TRANSCRIPTION ---")
+        self.format_dropdown.addItem("MIDI File", "MIDI")
+        
+        # Section: Audio
+        self.add_combo_header("--- AUDIO (SOUND) ---")
+        self.format_dropdown.addItem("Opus", "OPUS")
+        self.format_dropdown.addItem("AAC", "AAC")
+        self.format_dropdown.addItem("MP3", "MP3")
+        self.format_dropdown.addItem("FLAC", "FLAC")
+        self.format_dropdown.addItem("WAV", "WAV")
+        
+        # Section: Video
+        self.add_combo_header("--- VIDEO ---")
+        self.format_dropdown.addItem("MP4 Full (Original)", "MP4_FULL")
+        self.format_dropdown.addItem("MP4 1080p", "MP4_1080P")
+        self.format_dropdown.addItem("MP4 720p", "MP4_720P")
+        self.format_dropdown.addItem("MP4 Video (No Audio)", "MP4_VIDEO_ONLY")
+        
+        self.format_dropdown.currentIndexChanged.connect(self.on_format_changed)
+        input_layout.addWidget(self.format_dropdown)
+        
         self.add_btn = QPushButton("Add to Queue")
         self.add_btn.setObjectName("Primary")
         self.add_btn.setFixedHeight(40)
         self.add_btn.clicked.connect(self.add_url)
         input_layout.addWidget(self.add_btn)
-        
         main_layout.addLayout(input_layout)
-
-        # Queue Area
-        queue_label = QLabel("Transcription Queue")
+        queue_label = QLabel("Transcription & Download Queue")
         queue_label.setObjectName("Header")
         main_layout.addWidget(queue_label)
-
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setObjectName("StepCard")
-        
         self.queue_container = QWidget()
         self.queue_layout = QVBoxLayout(self.queue_container)
         self.queue_layout.setAlignment(Qt.AlignTop)
         self.queue_layout.setSpacing(10)
-        
         self.scroll_area.setWidget(self.queue_container)
         main_layout.addWidget(self.scroll_area)
-
-        # Footer (Resources & Stats)
-        footer_outer = QVBoxLayout()
-        
-        # Network monitor line
-        res_layout = QHBoxLayout()
-        self.net_label = QLabel("Network: Initializing...")
-        self.net_label.setStyleSheet("color: #9DB3D1; font-size: 11px; font-family: monospace;")
-        res_layout.addWidget(self.net_label)
-        res_layout.addStretch()
-        footer_outer.addLayout(res_layout)
-
         footer_layout = QHBoxLayout()
         self.stats_label = QLabel("Ready")
         self.stats_label.setStyleSheet("font-weight: bold; color: #64E8FF;")
         footer_layout.addWidget(self.stats_label)
+        self.safety_label = QLabel("")
+        self.safety_label.setStyleSheet("color: #F1C40F; font-size: 11px; font-weight: bold;")
+        footer_layout.addWidget(self.safety_label)
         footer_layout.addStretch()
-        
         self.open_output_btn = QPushButton("Open Output Folder")
         self.open_output_btn.clicked.connect(self.open_output)
         footer_layout.addWidget(self.open_output_btn)
-        footer_outer.addLayout(footer_layout)
-        
-        main_layout.addLayout(footer_outer)
+        main_layout.addLayout(footer_layout)
+
+    def add_combo_header(self, text):
+        self.format_dropdown.addItem(text)
+        idx = self.format_dropdown.count() - 1
+        self.format_dropdown.setItemData(idx, "header", Qt.UserRole)
+        # Disable selection for headers
+        self.format_dropdown.model().item(idx).setEnabled(False)
+        self.format_dropdown.model().item(idx).setData(Qt.AlignCenter, Qt.TextAlignmentRole)
 
     def connect_signals(self):
         self.queue_manager.task_metadata.connect(self.on_task_metadata)
         self.queue_manager.task_progress.connect(self.on_task_progress)
         self.queue_manager.task_error.connect(self.on_task_error)
         self.queue_manager.task_finished.connect(self.on_task_finished)
-        
-        # Resource Manager signals
         self.resource_manager.toast_notification.connect(self.show_toast)
-        self.resource_manager.stats_updated.connect(self.update_system_stats)
+        self.resource_manager.stats_updated.connect(self.update_resource_status)
 
-    def format_speed(self, bytes_per_sec):
-        if bytes_per_sec < 1024:
-            return f"{bytes_per_sec:.1f} B/s"
-        elif bytes_per_sec < 1024 * 1024:
-            return f"{bytes_per_sec / 1024:.1f} Kb/s"
-        elif bytes_per_sec < 1024 * 1024 * 1024:
-            return f"{bytes_per_sec / (1024 * 1024):.1f} Mb/s"
-        else:
-            return f"{bytes_per_sec / (1024 * 1024 * 1024):.1f} Gb/s"
+    def on_format_changed(self):
+        idx = self.format_dropdown.currentIndex()
+        if self.format_dropdown.itemData(idx, Qt.UserRole) == "header":
+            # Prevent manual selection of header (should be disabled already, but safety check)
+            return
+        fmt = self.format_dropdown.currentData()
+        if not fmt: return
+        self.queue_manager.set_output_format(fmt)
+        self.settings["output_format"] = fmt
+        self.config_manager.save_config(self.settings)
+        self.update_stats()
 
     @Slot(dict)
-    def update_system_stats(self, stats):
-        # Format Network Speed
-        down = self.format_speed(stats['net_down'])
-        up = self.format_speed(stats['net_up'])
-        
-        # Check for hidden safety layer triggers
-        safety_status = ""
-        is_safe = True
+    def update_resource_status(self, stats):
         if stats['app_cpu'] > 60 or stats['app_ram'] > 60 or stats['total_cpu'] > 85 or stats['total_ram'] > 85:
-            safety_status = " | [RESOURCE LIMIT ACTIVE]"
-            is_safe = False
-        
-        if is_safe:
-            self.net_label.setStyleSheet("color: #9DB3D1; font-size: 11px; font-family: monospace;")
+            self.safety_label.setText("[RESOURCE LIMIT ACTIVE: Waiting]")
         else:
-            self.net_label.setStyleSheet("color: #F1C40F; font-size: 11px; font-family: monospace; font-weight: bold;")
-            
-        self.net_label.setText(f"Internet: ↓ {down}  ↑ {up}{safety_status}")
+            self.safety_label.setText("")
 
     def show_toast(self, message):
         toast = Toast(self, message)
@@ -345,15 +315,17 @@ class MainWindow(QMainWindow):
             self.resource_manager.set_ram_settings(self.settings["ram_mode"], self.settings["ram_limit"])
             self.config_manager.save_config(self.settings)
             self.update_stats()
-            self.show_toast("Settings saved and applied.")
+            self.show_toast("Settings applied.")
 
     def add_url(self):
         url = self.url_input.text().strip()
         if not url: return
         limit = self.settings.get("queue_size_limit", 10)
         if len(self.items) >= limit:
-            self.show_toast(f"Queue is full! Limit is {limit} items.")
+            self.show_toast(f"Queue full! Limit: {limit}")
             return
+        current_fmt = self.format_dropdown.currentData()
+        self.queue_manager.set_output_format(current_fmt)
         item_id = str(uuid.uuid4())[:8]
         item_widget = QueueItem(item_id, url)
         item_widget.remove_requested.connect(self.remove_item)
@@ -372,13 +344,10 @@ class MainWindow(QMainWindow):
 
     def on_task_metadata(self, item_id, meta):
         if item_id in self.items: self.items[item_id].update_metadata(meta)
-
     def on_task_progress(self, item_id, status, progress):
         if item_id in self.items: self.items[item_id].update_status(status, progress)
-
     def on_task_error(self, item_id, error_msg):
         if item_id in self.items: self.items[item_id].update_status(f"Error: {error_msg}", 0)
-
     def on_task_finished(self, item_id):
         if item_id in self.items: self.items[item_id].update_status("Finished", 100)
         self.update_stats()
@@ -386,7 +355,8 @@ class MainWindow(QMainWindow):
     def update_stats(self):
         count = len(self.items)
         limit = self.settings.get("queue_size_limit", 10)
-        self.stats_label.setText(f"Queue size: {count} / {limit}")
+        fmt = self.format_dropdown.currentData()
+        self.stats_label.setText(f"Queue: {count} / {limit} | Active Mode: {fmt}")
 
     def open_output(self):
         output_path = os.path.abspath(self.queue_manager.output_dir)
