@@ -4,7 +4,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class YoutubeService:
+class MediaService:
     def __init__(self, temp_dir="temp"):
         self.temp_dir = temp_dir
         if not os.path.exists(self.temp_dir):

@@ -13,9 +13,9 @@ class QueueManager(QObject):
     task_error = Signal(str, str)   # id, error
     task_metadata = Signal(str, dict) # id, metadata
 
-    def __init__(self, youtube_service, transcriber_service, output_dir, max_concurrent=10):
+    def __init__(self, media_service, transcriber_service, output_dir, max_concurrent=10):
         super().__init__()
-        self.yt_service = youtube_service
+        self.media_service = media_service
         self.transcriber_service = transcriber_service
         self.output_dir = output_dir
         
@@ -41,7 +41,7 @@ class QueueManager(QObject):
 
         worker = TranscriptionWorker(
             item_id, url, 
-            self.yt_service, 
+            self.media_service, 
             self.transcriber_service, 
             self.output_dir
         )

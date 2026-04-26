@@ -16,11 +16,11 @@ class WorkerSignals(QObject):
     metadata = Signal(str, dict) # id, metadata_dict
 
 class TranscriptionWorker(QRunnable):
-    def __init__(self, item_id, url, youtube_service, transcriber_service, output_dir):
+    def __init__(self, item_id, url, media_service, transcriber_service, output_dir):
         super().__init__()
         self.item_id = item_id
         self.url = url
-        self.yt_service = youtube_service
+        self.media_service = media_service
         self.transcriber_service = transcriber_service
         self.output_dir = output_dir
         self.signals = WorkerSignals()
@@ -33,7 +33,7 @@ class TranscriptionWorker(QRunnable):
             # 1. Fetch Metadata
             logger.info(f"[{self.item_id}] Fetching metadata...")
             self.signals.progress.emit(self.item_id, "Fetching metadata...", 10)
-            meta = self.yt_service.get_metadata(self.url)
+            meta = self.media_service.get_metadata(self.url)
             self.signals.metadata.emit(self.item_id, meta)
             
             # Sanitize title while supporting all languages (keeping Thai vowels/tones)
@@ -48,7 +48,7 @@ class TranscriptionWorker(QRunnable):
             # 2. Download Audio
             logger.info(f"[{self.item_id}] Downloading audio...")
             self.signals.progress.emit(self.item_id, "Downloading audio...", 30)
-            audio_path = self.yt_service.download_audio(self.url, audio_filename)
+            audio_path = self.media_service.download_audio(self.url, audio_filename)
             
             # 3. Transcribe
             logger.info(f"[{self.item_id}] Transcribing...")

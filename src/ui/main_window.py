@@ -3,17 +3,114 @@ import uuid
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QLineEdit, QPushButton, QScrollArea, QLabel, 
-    QFileDialog, QMessageBox
+    QFileDialog, QMessageBox, QDialog, QRadioButton,
+    QButtonGroup, QSpinBox, QGraphicsOpacityEffect
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint
 from .queue_item import QueueItem
 
+class SettingsDialog(QDialog):
+    def __init__(self, parent=None, current_settings=None):
+        super().__init__(parent)
+        self.setWindowTitle("Settings")
+        self.setFixedWidth(400)
+        self.settings = current_settings or {"mode": "default", "limit": 50}
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        
+        layout.addWidget(QLabel("<b>CPU Limit Mode</b>"))
+        
+        self.group = QButtonGroup(self)
+        
+        self.default_rb = QRadioButton("Default (Background / Eco Mode)")
+        self.default_rb.setToolTip("Will not compete for CPU. Uses remaining capacity. Safety limits applied.")
+        self.group.addButton(self.default_rb)
+        layout.addWidget(self.default_rb)
+        
+        default_desc = QLabel("Uses idle priority. Limits usage if remaining CPU < 20%.")
+        default_desc.setStyleSheet("color: #9DB3D1; font-size: 11px; margin-left: 20px; margin-bottom: 10px;")
+        layout.addWidget(default_desc)
+
+        self.custom_rb = QRadioButton("Custom CPU Limit (%)")
+        self.group.addButton(self.custom_rb)
+        layout.addWidget(self.custom_rb)
+        
+        custom_layout = QHBoxLayout()
+        custom_layout.setContentsMargins(20, 0, 0, 10)
+        self.limit_spin = QSpinBox()
+        self.limit_spin.setRange(1, 100)
+        self.limit_spin.setValue(self.settings.get("limit", 50))
+        custom_layout.addWidget(QLabel("Max CPU Lock:"))
+        custom_layout.addWidget(self.limit_spin)
+        custom_layout.addWidget(QLabel("%"))
+        custom_layout.addStretch()
+        layout.addLayout(custom_layout)
+
+        if self.settings["mode"] == "default":
+            self.default_rb.setChecked(True)
+        else:
+            self.custom_rb.setChecked(True)
+
+        buttons = QHBoxLayout()
+        save_btn = QPushButton("Save Settings")
+        save_btn.setObjectName("Primary")
+        save_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        buttons.addWidget(save_btn)
+        buttons.addWidget(cancel_btn)
+        layout.addLayout(buttons)
+
+    def get_settings(self):
+        return {
+            "mode": "default" if self.default_rb.isChecked() else "custom",
+            "limit": self.limit_spin.value()
+        }
+
+class Toast(QLabel):
+    def __init__(self, parent, message):
+        super().__init__(message, parent)
+        self.setAlignment(Qt.AlignCenter)
+        self.setWordWrap(True)
+        self.setStyleSheet("""
+            background-color: #1E293B;
+            color: #64E8FF;
+            border: 1px solid #2EC1CC;
+            border-radius: 10px;
+            padding: 10px;
+            font-size: 13px;
+            font-weight: bold;
+        """)
+        self.setFixedWidth(300)
+        self.move((parent.width() - self.width()) // 2, 50)
+        
+        self.opacity_effect = QGraphicsOpacityEffect(self)
+        self.setGraphicsEffect(self.opacity_effect)
+        
+        self.show()
+        
+        # Fade out
+        self.timer = QTimer()
+        self.timer.singleShot(4000, self.fade_out)
+
+    def fade_out(self):
+        self.anim = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.anim.setDuration(1000)
+        self.anim.setStartValue(1.0)
+        self.anim.setEndValue(0.0)
+        self.anim.finished.connect(self.deleteLater)
+        self.anim.start()
+
 class MainWindow(QMainWindow):
-    def __init__(self, queue_manager, config):
+    def __init__(self, queue_manager, cpu_manager, config):
         super().__init__()
         self.queue_manager = queue_manager
+        self.cpu_manager = cpu_manager
         self.config = config
         self.items = {}
+        self.settings = {"mode": "default", "limit": 50}
 
         self.setWindowTitle("U2M - YouTube to MIDI")
         self.resize(800, 600)
@@ -29,15 +126,26 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(15)
 
         # Header
+        header_layout = QHBoxLayout()
         header = QLabel("U2M: Piano Transcription")
         header.setObjectName("Header")
-        header.setStyleSheet("font-size: 24px; margin-bottom: 10px;")
-        main_layout.addWidget(header)
+        header.setStyleSheet("font-size: 24px;")
+        header_layout.addWidget(header)
+        
+        header_layout.addStretch()
+        
+        self.settings_btn = QPushButton("⚙") # Gear icon
+        self.settings_btn.setFixedSize(40, 40)
+        self.settings_btn.setStyleSheet("font-size: 20px; padding: 0;")
+        self.settings_btn.clicked.connect(self.show_settings)
+        header_layout.addWidget(self.settings_btn)
+        
+        main_layout.addLayout(header_layout)
 
         # Input Area
         input_layout = QHBoxLayout()
         self.url_input = QLineEdit()
-        self.url_input.setPlaceholderText("Paste YouTube URL here...")
+        self.url_input.setPlaceholderText("Paste video or audio URL here (YouTube, TikTok, SoundCloud, etc.)...")
         self.url_input.setFixedHeight(40)
         input_layout.addWidget(self.url_input)
 
@@ -85,16 +193,25 @@ class MainWindow(QMainWindow):
         self.queue_manager.task_progress.connect(self.on_task_progress)
         self.queue_manager.task_error.connect(self.on_task_error)
         self.queue_manager.task_finished.connect(self.on_task_finished)
+        
+        # CPU Manager signals
+        self.cpu_manager.toast_notification.connect(self.show_toast)
+
+    def show_toast(self, message):
+        Toast(self, message)
+
+    def show_settings(self):
+        dialog = SettingsDialog(self, self.settings)
+        if dialog.exec():
+            self.settings = dialog.get_settings()
+            self.cpu_manager.set_settings(self.settings["mode"], self.settings["limit"])
+            self.show_toast("Settings saved and applied.")
 
     def add_url(self):
         url = self.url_input.text().strip()
         if not url:
             return
         
-        if "youtube.com" not in url and "youtu.be" not in url:
-            QMessageBox.warning(self, "Invalid URL", "Please enter a valid YouTube URL.")
-            return
-
         item_id = str(uuid.uuid4())[:8]
         
         # Create UI Item

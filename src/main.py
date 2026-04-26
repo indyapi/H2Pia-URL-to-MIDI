@@ -25,8 +25,9 @@ setup_ffmpeg()
 from PySide6.QtWidgets import QApplication
 from src.ui.main_window import MainWindow
 from src.core.queue_manager import QueueManager
-from src.services.youtube import YoutubeService
+from src.services.media import MediaService
 from src.services.transcriber import TranscriptionService
+from src.core.cpu_manager import CpuManager
 
 from src.core.logger import setup_logging
 import logging
@@ -42,6 +43,10 @@ def main():
     temp_dir = os.path.join(base_dir, "temp")
     qss_path = os.path.join(base_dir, "assets", "styles", "dark.qss")
     
+    # Initialize CPU Manager
+    cpu_manager = CpuManager()
+    cpu_manager.start()
+    
     # Load Thai-compatible font for 100% language support
     font_dir = os.path.join(base_dir, "assets", "font", "Sarabun")
     if os.path.exists(font_dir):
@@ -56,12 +61,12 @@ def main():
         os.makedirs(output_dir)
     
     # 2. Initialize Services
-    yt_service = YoutubeService(temp_dir=temp_dir)
+    media_service = MediaService(temp_dir=temp_dir)
     # We pass None initially and will initialize it when needed or in background
     transcriber_service = None 
     
     queue_manager = QueueManager(
-        youtube_service=yt_service,
+        media_service=media_service,
         transcriber_service=transcriber_service,
         output_dir=output_dir,
         max_concurrent=10
@@ -73,10 +78,16 @@ def main():
             app.setStyleSheet(f.read())
             
     # 4. Launch UI
-    window = MainWindow(queue_manager, config={})
+    window = MainWindow(queue_manager, cpu_manager, config={})
     window.show()
     
-    sys.exit(app.exec())
+    exit_code = app.exec()
+    
+    # Cleanup
+    cpu_manager.stop()
+    cpu_manager.wait()
+    
+    sys.exit(exit_code)
 
 if __name__ == "__main__":
     main()

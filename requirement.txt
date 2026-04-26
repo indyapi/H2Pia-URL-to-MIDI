@@ -10,3 +10,5 @@ soundfile==0.10.3.post1
 torch>=2.0.0
 numpy
 ffmpeg-python
+psutil
+setuptools<81
