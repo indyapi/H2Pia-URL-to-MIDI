@@ -1,8 +1,14 @@
 import sys
 import os
 import shutil
+import warnings
 from pathlib import Path
 from PySide6.QtGui import QFontDatabase
+
+# Suppress DeprecationWarning for pkg_resources from third-party libraries
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="pkg_resources")
+# Also handle the specific setuptools warning if it comes as a UserWarning
+warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated as an API.*")
 
 def setup_ffmpeg():
     """Ensures ffmpeg/ffprobe are in PATH."""

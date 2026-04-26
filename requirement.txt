@@ -11,4 +11,4 @@ torch>=2.0.0
 numpy
 ffmpeg-python
 psutil
-setuptools<81
+setuptools<71
