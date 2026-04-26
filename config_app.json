@@ -3,7 +3,7 @@
     "cpu_limit": 50,
     "ram_mode": "default",
     "ram_limit": 50,
-    "queue_size_limit": 20,
+    "queue_size_limit": 7,
     "output_dir": "output",
     "theme": "dark"
 }

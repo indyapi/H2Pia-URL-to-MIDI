@@ -177,7 +177,7 @@ class MainWindow(QMainWindow):
         self.settings = self.config_manager.config
 
         self.setWindowTitle("U2M - YouTube to MIDI")
-        self.resize(800, 600)
+        self.resize(800, 650)
         
         self.init_ui()
         self.connect_signals()
@@ -211,7 +211,6 @@ class MainWindow(QMainWindow):
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("Paste video or audio URL here (YouTube, TikTok, SoundCloud, etc.)...")
         self.url_input.setFixedHeight(40)
-        # UX: Press Enter to add to queue
         self.url_input.returnPressed.connect(self.add_url)
         input_layout.addWidget(self.url_input)
 
@@ -240,19 +239,29 @@ class MainWindow(QMainWindow):
         self.scroll_area.setWidget(self.queue_container)
         main_layout.addWidget(self.scroll_area)
 
-        # Footer
+        # Footer (Resources & Stats)
+        footer_outer = QVBoxLayout()
+        
+        # Network monitor line
+        res_layout = QHBoxLayout()
+        self.net_label = QLabel("Network: Initializing...")
+        self.net_label.setStyleSheet("color: #9DB3D1; font-size: 11px; font-family: monospace;")
+        res_layout.addWidget(self.net_label)
+        res_layout.addStretch()
+        footer_outer.addLayout(res_layout)
+
         footer_layout = QHBoxLayout()
-        
         self.stats_label = QLabel("Ready")
+        self.stats_label.setStyleSheet("font-weight: bold; color: #64E8FF;")
         footer_layout.addWidget(self.stats_label)
-        
         footer_layout.addStretch()
         
         self.open_output_btn = QPushButton("Open Output Folder")
         self.open_output_btn.clicked.connect(self.open_output)
         footer_layout.addWidget(self.open_output_btn)
+        footer_outer.addLayout(footer_layout)
         
-        main_layout.addLayout(footer_layout)
+        main_layout.addLayout(footer_outer)
 
     def connect_signals(self):
         self.queue_manager.task_metadata.connect(self.on_task_metadata)
@@ -262,14 +271,42 @@ class MainWindow(QMainWindow):
         
         # Resource Manager signals
         self.resource_manager.toast_notification.connect(self.show_toast)
+        self.resource_manager.stats_updated.connect(self.update_system_stats)
+
+    def format_speed(self, bytes_per_sec):
+        if bytes_per_sec < 1024:
+            return f"{bytes_per_sec:.1f} B/s"
+        elif bytes_per_sec < 1024 * 1024:
+            return f"{bytes_per_sec / 1024:.1f} Kb/s"
+        elif bytes_per_sec < 1024 * 1024 * 1024:
+            return f"{bytes_per_sec / (1024 * 1024):.1f} Mb/s"
+        else:
+            return f"{bytes_per_sec / (1024 * 1024 * 1024):.1f} Gb/s"
+
+    @Slot(dict)
+    def update_system_stats(self, stats):
+        # Format Network Speed
+        down = self.format_speed(stats['net_down'])
+        up = self.format_speed(stats['net_up'])
+        
+        # Check for hidden safety layer triggers
+        safety_status = ""
+        is_safe = True
+        if stats['app_cpu'] > 60 or stats['app_ram'] > 60 or stats['total_cpu'] > 85 or stats['total_ram'] > 85:
+            safety_status = " | [RESOURCE LIMIT ACTIVE]"
+            is_safe = False
+        
+        if is_safe:
+            self.net_label.setStyleSheet("color: #9DB3D1; font-size: 11px; font-family: monospace;")
+        else:
+            self.net_label.setStyleSheet("color: #F1C40F; font-size: 11px; font-family: monospace; font-weight: bold;")
+            
+        self.net_label.setText(f"Internet: ↓ {down}  ↑ {up}{safety_status}")
 
     def show_toast(self, message):
         toast = Toast(self, message)
-        
-        # Start position: below the window bottom
         start_x = (self.width() - toast.width()) // 2
         toast.move(start_x, self.height())
-        
         toast.closed.connect(self.on_toast_closed)
         self.active_toasts.append(toast)
         self.reposition_toasts()
@@ -280,26 +317,19 @@ class MainWindow(QMainWindow):
             self.reposition_toasts()
 
     def reposition_toasts(self):
-        # Position toasts at the bottom center, stacking upwards
-        bottom_margin = 30
+        bottom_margin = 80 
         spacing = 10
         current_y = self.height() - bottom_margin
-        
         for toast in reversed(self.active_toasts):
             current_y -= toast.height()
             target_x = (self.width() - toast.width()) // 2
-            
-            # Animate movement
             anim = QPropertyAnimation(toast, b"pos")
             anim.setDuration(500)
             anim.setStartValue(toast.pos())
             anim.setEndValue(QPoint(target_x, current_y))
             anim.setEasingCurve(QEasingCurve.OutCubic)
             anim.start()
-            
-            # Keep a reference to animation to prevent GC
             toast.move_anim = anim
-            
             current_y -= spacing
 
     def resizeEvent(self, event):
@@ -311,36 +341,24 @@ class MainWindow(QMainWindow):
         if dialog.exec():
             new_settings = dialog.get_settings()
             self.settings.update(new_settings)
-            
-            # Update Resource Manager
             self.resource_manager.set_cpu_settings(self.settings["cpu_mode"], self.settings["cpu_limit"])
             self.resource_manager.set_ram_settings(self.settings["ram_mode"], self.settings["ram_limit"])
-            
-            # Save to config file
             self.config_manager.save_config(self.settings)
-            
+            self.update_stats()
             self.show_toast("Settings saved and applied.")
 
     def add_url(self):
         url = self.url_input.text().strip()
-        if not url:
-            return
-        
-        # Check queue size limit
+        if not url: return
         limit = self.settings.get("queue_size_limit", 10)
         if len(self.items) >= limit:
             self.show_toast(f"Queue is full! Limit is {limit} items.")
             return
-
         item_id = str(uuid.uuid4())[:8]
-        
-        # Create UI Item
         item_widget = QueueItem(item_id, url)
         item_widget.remove_requested.connect(self.remove_item)
         self.queue_layout.insertWidget(0, item_widget)
         self.items[item_id] = item_widget
-        
-        # Start Task
         self.queue_manager.add_task(item_id, url)
         self.url_input.clear()
         self.update_stats()
@@ -353,20 +371,16 @@ class MainWindow(QMainWindow):
             self.update_stats()
 
     def on_task_metadata(self, item_id, meta):
-        if item_id in self.items:
-            self.items[item_id].update_metadata(meta)
+        if item_id in self.items: self.items[item_id].update_metadata(meta)
 
     def on_task_progress(self, item_id, status, progress):
-        if item_id in self.items:
-            self.items[item_id].update_status(status, progress)
+        if item_id in self.items: self.items[item_id].update_status(status, progress)
 
     def on_task_error(self, item_id, error_msg):
-        if item_id in self.items:
-            self.items[item_id].update_status(f"Error: {error_msg}", 0)
+        if item_id in self.items: self.items[item_id].update_status(f"Error: {error_msg}", 0)
 
     def on_task_finished(self, item_id):
-        if item_id in self.items:
-            self.items[item_id].update_status("Finished", 100)
+        if item_id in self.items: self.items[item_id].update_status("Finished", 100)
         self.update_stats()
 
     def update_stats(self):
@@ -376,6 +390,5 @@ class MainWindow(QMainWindow):
 
     def open_output(self):
         output_path = os.path.abspath(self.queue_manager.output_dir)
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
+        if not os.path.exists(output_path): os.makedirs(output_path)
         os.startfile(output_path)
