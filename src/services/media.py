@@ -16,14 +16,27 @@ class MediaService:
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
-            'extract_flat': True,
+            'noplaylist': True,
+            'extract_flat': False,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
                 info = ydl.extract_info(url, download=False)
+                
+                # If it's a playlist-like structure, get the first entry
+                if 'entries' in info and info['entries']:
+                    info = info['entries'][0]
+                
+                # Ensure thumbnail is a string if it exists
+                thumbnail = info.get('thumbnail')
+                if isinstance(thumbnail, list) and thumbnail:
+                    thumbnail = thumbnail[0].get('url')
+                elif isinstance(thumbnail, dict):
+                    thumbnail = thumbnail.get('url')
+                
                 return {
-                    'title': info.get('title', 'Unknown Title'),
-                    'thumbnail': info.get('thumbnail'),
+                    'title': info.get('title') or info.get('id') or 'Unknown Title',
+                    'thumbnail': thumbnail,
                     'duration': info.get('duration'),
                     'id': info.get('id')
                 }

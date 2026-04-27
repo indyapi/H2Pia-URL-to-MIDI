@@ -45,7 +45,7 @@ class SettingsDialog(QDialog):
         
         layout.addWidget(QLabel("<b>RAM Restricted Mode</b>"))
         self.ram_group = QButtonGroup(self); self.ram_default_rb = QRadioButton("Default (Eco Mode)"); self.ram_group.addButton(self.ram_default_rb); layout.addWidget(self.ram_default_rb)
-        lbl_ram = QLabel("Safety limits if remaining RAM < 20%."); lbl_ram.setStyleSheet("color: #9DB3D1; font-size: 11px; margin-left: 20px;"); layout.addWidget(lbl_ram)
+        lbl_ram = QLabel("Safety limits applied if remaining RAM < 20%."); lbl_ram.setStyleSheet("color: #9DB3D1; font-size: 11px; margin-left: 20px;"); layout.addWidget(lbl_ram)
         self.ram_custom_rb = QRadioButton("Custom RAM Limit (%)"); self.ram_group.addButton(self.ram_custom_rb); layout.addWidget(self.ram_custom_rb)
         ram_custom_layout = QHBoxLayout(); ram_custom_layout.setContentsMargins(20, 0, 0, 10); self.ram_limit_spin = QSpinBox(); self.ram_limit_spin.setRange(1, 100); self.ram_limit_spin.setValue(self.settings.get("ram_limit", 50))
         ram_custom_layout.addWidget(QLabel("Max RAM Lock:")); ram_custom_layout.addWidget(self.ram_limit_spin); ram_custom_layout.addWidget(QLabel("%")); ram_custom_layout.addStretch(); layout.addLayout(ram_custom_layout)
@@ -55,23 +55,14 @@ class SettingsDialog(QDialog):
         grid.addWidget(QLabel("Max Total Queue Size:"), 0, 0); self.queue_limit_spin = QSpinBox(); self.queue_limit_spin.setRange(1, 100); self.queue_limit_spin.setValue(self.settings.get("queue_size_limit", 10)); grid.addWidget(self.queue_limit_spin, 0, 1)
         grid.addWidget(QLabel("Max Simultaneous Tasks:"), 1, 0); self.concurrency_limit_spin = QSpinBox(); self.concurrency_limit_spin.setRange(1, 10); self.concurrency_limit_spin.setValue(self.settings.get("concurrency_limit", 3)); grid.addWidget(self.concurrency_limit_spin, 1, 1)
         layout.addLayout(grid)
-        
-        # Recommendation Label
-        rec_label = QLabel("(MIDI format: 3 is recommended for best performance)")
-        rec_label.setStyleSheet("color: #F1C40F; font-size: 11px; font-style: italic;")
-        layout.addWidget(rec_label)
-        
+        rec_label = QLabel("(MIDI format: 3 is recommended for best performance)"); rec_label.setStyleSheet("color: #F1C40F; font-size: 11px; font-style: italic;"); layout.addWidget(rec_label)
         if self.settings.get("cpu_mode") == "default": self.cpu_default_rb.setChecked(True)
         else: self.cpu_custom_rb.setChecked(True)
         if self.settings.get("ram_mode") == "default": self.ram_default_rb.setChecked(True)
         else: self.ram_custom_rb.setChecked(True)
         layout.addSpacing(10); buttons = QHBoxLayout(); save_btn = QPushButton("Save Settings"); save_btn.setObjectName("Primary"); save_btn.clicked.connect(self.accept); cancel_btn = QPushButton("Cancel"); cancel_btn.clicked.connect(self.reject); buttons.addWidget(save_btn); buttons.addWidget(cancel_btn); layout.addLayout(buttons)
-
     def get_settings(self):
         return {"cpu_mode": "default" if self.cpu_default_rb.isChecked() else "custom", "cpu_limit": self.cpu_limit_spin.value(), "ram_mode": "default" if self.ram_default_rb.isChecked() else "custom", "ram_limit": self.ram_limit_spin.value(), "queue_size_limit": self.queue_limit_spin.value(), "concurrency_limit": self.concurrency_limit_spin.value()}
-
-# ... rest of the file (FormatPopupMenu, Toast, MainWindow) remains similar ...
-# (Only updating MainWindow's update_stats for consistency)
 
 class FormatPopupMenu(QFrame):
     formatSelected = Signal(str, str)
@@ -108,7 +99,7 @@ class Toast(QLabel):
 class MainWindow(QMainWindow):
     def __init__(self, queue_manager, resource_manager, config_manager):
         super().__init__(); self.queue_manager = queue_manager; self.resource_manager = resource_manager; self.config_manager = config_manager; self.items = {}; self.active_toasts = []; self.settings = self.config_manager.config
-        self.setWindowTitle("U2M - YouTube to MIDI"); self.resize(900, 650); self.init_ui(); self.connect_signals()
+        self.setWindowTitle("U2M - URL to MIDI"); self.resize(900, 650); self.init_ui(); self.connect_signals()
         fmt_key = self.settings.get("output_format", "MIDI"); self.update_format_display(fmt_key)
     def init_ui(self):
         central_widget = QWidget(); self.setCentralWidget(central_widget); main_layout = QVBoxLayout(central_widget); main_layout.setContentsMargins(20, 20, 20, 20); main_layout.setSpacing(15)
@@ -132,11 +123,16 @@ class MainWindow(QMainWindow):
         self.format_btn.setText(f"Format: {key}"); self.queue_manager.set_output_format(key)
     def connect_signals(self):
         self.queue_manager.task_metadata.connect(self.on_task_metadata); self.queue_manager.task_progress.connect(self.on_task_progress); self.queue_manager.task_error.connect(self.on_task_error); self.queue_manager.task_finished.connect(self.on_task_finished)
-        self.resource_manager.toast_notification.connect(self.show_toast); self.resource_manager.stats_updated.connect(self.update_resource_status)
-    @Slot(dict)
-    def update_resource_status(self, stats):
-        if stats['app_cpu'] > 60 or stats['app_ram'] > 60 or stats['total_cpu'] > 85 or stats['total_ram'] > 85: self.safety_label.setText("[RESOURCE LIMIT ACTIVE]")
-        else: self.safety_label.setText("")
+        self.resource_manager.toast_notification.connect(self.show_toast); self.resource_manager.resource_paused.connect(self.on_resource_paused)
+    
+    @Slot(bool)
+    def on_resource_paused(self, paused):
+        # Update all active items in UI to show pause status
+        for item_id, worker in self.queue_manager.active_tasks.items():
+            if item_id in self.items:
+                if paused: self.items[item_id].update_status("PAUSED (System Resources Low)", 0)
+                else: self.items[item_id].update_status("Resuming...", 0)
+
     def show_toast(self, message):
         toast = Toast(self, message); start_x = (self.width() - toast.width()) // 2; toast.move(start_x, self.height()); toast.closed.connect(self.on_toast_closed); self.active_toasts.append(toast); self.reposition_toasts()
     def on_toast_closed(self, toast):
@@ -150,9 +146,7 @@ class MainWindow(QMainWindow):
     def show_settings(self):
         dialog = SettingsDialog(self, self.settings)
         if dialog.exec():
-            new_settings = dialog.get_settings(); self.settings.update(new_settings); self.resource_manager.set_cpu_settings(self.settings["cpu_mode"], self.settings["cpu_limit"]); self.resource_manager.set_ram_settings(self.settings["ram_mode"], self.settings["ram_limit"])
-            self.queue_manager.set_concurrency_limit(self.settings["concurrency_limit"])
-            self.config_manager.save_config(self.settings); self.update_stats(); self.show_toast("Settings saved.")
+            new_settings = dialog.get_settings(); self.settings.update(new_settings); self.resource_manager.set_cpu_settings(self.settings["cpu_mode"], self.settings["cpu_limit"]); self.resource_manager.set_ram_settings(self.settings["ram_mode"], self.settings["ram_limit"]); self.queue_manager.set_concurrency_limit(self.settings["concurrency_limit"]); self.config_manager.save_config(self.settings); self.update_stats(); self.show_toast("Settings saved.")
     def add_url(self):
         url = self.url_input.text().strip()
         if not url: return
