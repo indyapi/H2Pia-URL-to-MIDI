@@ -18,17 +18,21 @@ def _subprocess_transcribe_worker(audio_path, output_midi_path, device):
         
         from piano_transcription_inference import PianoTranscription, sample_rate, load_audio
         import torch
-        
-        # ปรับแก้การเรียกใช้งานให้ทันสมัย (ถ้าเราเรียกเอง) หรือปิด warning ถ้า library เรียก
-        # library 'piano_transcription_inference' มักจะเรียก resample แบบ positional
+        import numpy as np
         
         transcriber = PianoTranscription(device=device)
         
-        # Load audio and automatically resample to the library's expected sample_rate (16kHz)
+        # Load audio and automatically resample to 16kHz
         (audio, _) = load_audio(audio_path, sr=sample_rate, mono=True)
         
-        # Perform transcription
-        transcriber.transcribe(audio, output_midi_path)
+        # Normalize audio levels to improve AI accuracy and register detection
+        # This helps the AI better differentiate between loud harmonics and actual notes
+        if np.max(np.abs(audio)) > 0:
+            audio = audio / np.max(np.abs(audio))
+        
+        # Use torch.no_grad for better inference stability if on GPU
+        with torch.no_grad():
+            transcriber.transcribe(audio, output_midi_path)
         
         # Cleanup
         del audio

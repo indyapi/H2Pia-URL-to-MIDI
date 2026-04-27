@@ -99,11 +99,10 @@ class MediaService:
         # --- MIDI MODE ---
         elif format_type == 'MIDI':
             ydl_opts.update({
-                'format': 'bestaudio/best',
+                'format': 'bestaudio/best', # Get highest quality regardless of bitrate
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'wav',
-                    'preferredquality': '192',
                 }],
             })
 
