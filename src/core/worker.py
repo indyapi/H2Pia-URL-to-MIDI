@@ -78,25 +78,25 @@ class TranscriptionWorker(QRunnable):
                 if self._is_cancelled: return
                 
                 # Start AI Sub-process
-                self.signals.progress.emit(self.item_id, "Loading AI Engine...", 30)
+                # Progress stays at 30% while processing in background
+                self.signals.progress.emit(self.item_id, "Processing...", 30)
                 final_path = self.media_service.get_unique_path(format_folder, safe_title, "mid")
                 self._ai_process = self.transcriber_service.transcribe(temp_file, final_path)
                 
-                total_segments = max(1, math.ceil(duration / 10))
-                # Realistically AI takes some time to start, adjust estimation
-                start_time = time.time()
                 while self._ai_process.is_alive():
                     if self._is_cancelled: break
-                    elapsed = time.time() - start_time
-                    # Simulating segment progress based on expected processing speed (approx 1s/segment)
-                    current_seg = min(total_segments, int(elapsed / 1.2) + 1)
-                    p_val = 30 + int((current_seg / total_segments) * 65)
-                    self.signals.progress.emit(self.item_id, f"Transcribing segment {current_seg}/{total_segments}...", min(95, p_val))
                     time.sleep(1)
                 
                 self._ai_process.join()
                 if self._ai_process.exitcode != 0 and not self._is_cancelled:
+                    if os.path.exists(final_path):
+                        try: os.remove(final_path)
+                        except: pass
                     raise Exception("AI Transcription failed internally.")
+                
+                if not self._is_cancelled:
+                    # Progress jumps only after background process is complete
+                    self.signals.progress.emit(self.item_id, "Completing...", 95)
             else:
                 # Other formats (Direct Download)
                 self.signals.progress.emit(self.item_id, f"Downloading {format_name}...", 20)
@@ -106,7 +106,8 @@ class TranscriptionWorker(QRunnable):
                 try:
                     self.media_service.download(self.url, os.path.splitext(unique_target)[0], self.output_format)
                 except Exception as e:
-                    raise Exception(f"Media download failed: {str(e)}")
+                    if os.path.exists(unique_target): os.remove(unique_target)
+                    raise Exception("Media download failed.")
 
             if not self._is_cancelled:
                 self.signals.progress.emit(self.item_id, "Finished", 100)

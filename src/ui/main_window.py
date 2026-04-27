@@ -1,5 +1,6 @@
 import os
 import uuid
+import socket
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QLineEdit, QPushButton, QScrollArea, QLabel, 
@@ -9,6 +10,13 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint, Signal, Slot
 from .queue_item import QueueItem
+
+def is_connected():
+    try:
+        socket.create_connection(("8.8.8.8", 53), timeout=3)
+        return True
+    except OSError:
+        return False
 
 class SettingsDialog(QDialog):
     def __init__(self, parent=None, current_settings=None):
@@ -150,6 +158,11 @@ class MainWindow(QMainWindow):
     def add_url(self):
         url = self.url_input.text().strip()
         if not url: return
+
+        if not is_connected():
+            self.show_toast("No internet connection. Please check your network.")
+            return
+
         limit = self.settings.get("queue_size_limit", 10)
         if len(self.items) >= limit: self.show_toast(f"Queue full! Limit: {limit}"); return
         current_fmt = self.settings.get("output_format", "MIDI")
@@ -161,7 +174,10 @@ class MainWindow(QMainWindow):
     def on_task_progress(self, item_id, status, progress):
         if item_id in self.items: self.items[item_id].update_status(status, progress)
     def on_task_error(self, item_id, error_msg):
-        if item_id in self.items: self.items[item_id].update_status(f"Error: {error_msg}", 0)
+        if item_id in self.items:
+            # We don't reset progress to 0, just update status to Failed
+            current_progress = self.items[item_id].progress_bar.value()
+            self.items[item_id].update_status("Queue Failed", current_progress)
     def on_task_finished(self, item_id):
         if item_id in self.items: self.items[item_id].update_status("Finished", 100)
         self.update_stats()

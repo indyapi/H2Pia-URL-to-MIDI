@@ -138,5 +138,5 @@ class QueueItem(QFrame):
         self.progress_bar.setValue(progress)
         self.update_progress_style(progress)
         if status == "Finished": self.update_progress_style(100)
-        elif "Error" in status:
+        elif "Error" in status or "Failed" in status:
             self.progress_bar.setStyleSheet("QProgressBar::chunk { background-color: #E74C3C; }")
