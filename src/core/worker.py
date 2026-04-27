@@ -15,7 +15,7 @@ class WorkerSignals(QObject):
     metadata = Signal(str, dict)
 
 class TranscriptionWorker(QRunnable):
-    def __init__(self, item_id, url, media_service, transcriber_service, output_dir, output_format):
+    def __init__(self, item_id, url, media_service, transcriber_service, output_dir, output_format, resource_manager):
         super().__init__()
         self.item_id = item_id
         self.url = url
@@ -23,6 +23,7 @@ class TranscriptionWorker(QRunnable):
         self.transcriber_service = transcriber_service
         self.output_dir = output_dir
         self.output_format = output_format
+        self.resource_manager = resource_manager
         self.signals = WorkerSignals()
         self._is_cancelled = False
         self._ai_process = None
@@ -47,7 +48,14 @@ class TranscriptionWorker(QRunnable):
         if self._is_cancelled: return
         temp_file = None
         try:
+            # Helper to check for pause
+            def wait_if_paused():
+                while self.resource_manager.is_paused:
+                    if self._is_cancelled: break
+                    time.sleep(1)
+
             # Stage 1: Metadata
+            wait_if_paused()
             self.signals.progress.emit(self.item_id, "Fetching metadata...", 5)
             try:
                 meta = self.media_service.get_metadata(self.url)
@@ -68,6 +76,7 @@ class TranscriptionWorker(QRunnable):
 
             # Stage 2: Processing
             if self.output_format == "MIDI":
+                wait_if_paused()
                 self.signals.progress.emit(self.item_id, "Downloading audio...", 15)
                 temp_path = os.path.join("temp", f"temp_{self.item_id}")
                 try:
@@ -78,6 +87,7 @@ class TranscriptionWorker(QRunnable):
                 if self._is_cancelled: return
                 
                 # Start AI Sub-process
+                wait_if_paused()
                 # Progress stays at 30% while processing in background
                 self.signals.progress.emit(self.item_id, "Processing...", 30)
                 final_path = self.media_service.get_unique_path(format_folder, safe_title, "mid")
@@ -85,6 +95,7 @@ class TranscriptionWorker(QRunnable):
                 
                 while self._ai_process.is_alive():
                     if self._is_cancelled: break
+                    wait_if_paused()
                     time.sleep(1)
                 
                 self._ai_process.join()
@@ -95,10 +106,12 @@ class TranscriptionWorker(QRunnable):
                     raise Exception("AI Transcription failed internally.")
                 
                 if not self._is_cancelled:
+                    wait_if_paused()
                     # Progress jumps only after background process is complete
                     self.signals.progress.emit(self.item_id, "Completing...", 95)
             else:
                 # Other formats (Direct Download)
+                wait_if_paused()
                 self.signals.progress.emit(self.item_id, f"Downloading {format_name}...", 20)
                 ext_map = {"OPUS": "opus", "AAC": "m4a", "MP3": "mp3", "FLAC": "flac", "WAV": "wav", "MP4_FULL": "mp4", "MP4_1080P": "mp4", "MP4_720P": "mp4", "MP4_VIDEO_ONLY": "mp4"}
                 ext = ext_map.get(self.output_format, "media")
@@ -110,6 +123,7 @@ class TranscriptionWorker(QRunnable):
                     raise Exception("Media download failed.")
 
             if not self._is_cancelled:
+                wait_if_paused()
                 self.signals.progress.emit(self.item_id, "Finished", 100)
                 self.signals.finished.emit(self.item_id)
             

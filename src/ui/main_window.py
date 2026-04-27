@@ -138,8 +138,10 @@ class MainWindow(QMainWindow):
         # Update all active items in UI to show pause status
         for item_id, worker in self.queue_manager.active_tasks.items():
             if item_id in self.items:
-                if paused: self.items[item_id].update_status("PAUSED (System Resources Low)", 0)
-                else: self.items[item_id].update_status("Resuming...", 0)
+                if paused: self.items[item_id].update_status("PAUSED (System Resources Low)", self.items[item_id].progress_bar.value())
+                else: 
+                    self.show_toast("Resuming tasks...")
+                    self.items[item_id].restore_last_status()
 
     def show_toast(self, message):
         toast = Toast(self, message); start_x = (self.width() - toast.width()) // 2; toast.move(start_x, self.height()); toast.closed.connect(self.on_toast_closed); self.active_toasts.append(toast); self.reposition_toasts()
@@ -188,3 +190,8 @@ class MainWindow(QMainWindow):
         output_path = os.path.abspath(self.queue_manager.output_dir)
         if not os.path.exists(output_path): os.makedirs(output_path)
         os.startfile(output_path)
+
+    def closeEvent(self, event):
+        """Handle app closure by cancelling all tasks."""
+        self.queue_manager.cancel_all()
+        event.accept()

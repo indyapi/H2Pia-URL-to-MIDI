@@ -23,9 +23,11 @@ def _subprocess_transcribe_worker(audio_path, output_midi_path, device):
         # library 'piano_transcription_inference' มักจะเรียก resample แบบ positional
         
         transcriber = PianoTranscription(device=device)
+        
+        # Load audio and automatically resample to the library's expected sample_rate (16kHz)
         (audio, _) = load_audio(audio_path, sr=sample_rate, mono=True)
         
-        # เริ่มการถอดรหัส
+        # Perform transcription
         transcriber.transcribe(audio, output_midi_path)
         
         # Cleanup

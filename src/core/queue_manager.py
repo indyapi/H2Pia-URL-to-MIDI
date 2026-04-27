@@ -55,6 +55,18 @@ class QueueManager(QObject):
             gc.collect()
             self.process_queue()
 
+    def cancel_all(self):
+        """Stops all pending and active tasks."""
+        self.pending_tasks.clear()
+        active_ids = list(self.active_tasks.keys())
+        for item_id in active_ids:
+            worker = self.active_tasks[item_id]
+            worker.cancel()
+            del self.active_tasks[item_id]
+        self.threadpool.clear() # Prevent new threads from starting
+        self.threadpool.waitForDone(1000) # Wait up to 1 second
+        gc.collect()
+
     def process_queue(self):
         if not self.pending_tasks:
             return
@@ -71,7 +83,8 @@ class QueueManager(QObject):
         item_id, url = self.pending_tasks.pop(0)
         worker = TranscriptionWorker(
             item_id, url, self.media_service, 
-            self.transcriber_service, self.output_dir, self.output_format
+            self.transcriber_service, self.output_dir, self.output_format,
+            self.resource_manager
         )
         
         worker.signals.progress.connect(self.task_progress.emit)

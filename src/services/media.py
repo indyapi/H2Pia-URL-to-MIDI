@@ -105,7 +105,6 @@ class MediaService:
                     'preferredcodec': 'wav',
                     'preferredquality': '192',
                 }],
-                'postprocessor_args': ['-ar', '16000', '-ac', '1'],
             })
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
