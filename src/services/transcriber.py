@@ -7,6 +7,8 @@ import warnings
 # ปิดคำเตือน FutureWarnings ของ librosa ที่รบกวน Log
 warnings.filterwarnings("ignore", category=FutureWarning, module="librosa")
 
+logger = logging.getLogger(__name__)
+
 def _subprocess_transcribe_worker(audio_path, output_midi_path, device):
     """
     กระบวนการนี้ทำงานใน Process แยก เพื่อคืน RAM 100% หลังจบงาน
@@ -30,9 +32,11 @@ def _subprocess_transcribe_worker(audio_path, output_midi_path, device):
         if np.max(np.abs(audio)) > 0:
             audio = audio / np.max(np.abs(audio))
         
-        # Use torch.no_grad for better inference stability if on GPU
-        with torch.no_grad():
-            transcriber.transcribe(audio, output_midi_path)
+        # Perform transcription with higher sensitivity settings
+        # Default thresholds are usually 0.3. Lowering them helps capture missing notes.
+        transcriber.transcribe(audio, output_midi_path, 
+                               onset_threshold=0.15, 
+                               frame_threshold=0.15)
         
         # Cleanup
         del audio
@@ -45,8 +49,15 @@ def _subprocess_transcribe_worker(audio_path, output_midi_path, device):
         os._exit(1)
 
 class TranscriptionService:
-    def __init__(self, device='cpu'):
-        self.device = device
+    def __init__(self, device=None):
+        # Auto-detect device if not provided
+        if device is None:
+            import torch
+            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        else:
+            self.device = device
+        
+        logger.info(f"TranscriptionService initialized using device: {self.device}")
 
     def transcribe(self, audio_path, output_midi_path):
         p = multiprocessing.Process(

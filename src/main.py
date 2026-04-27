@@ -65,8 +65,16 @@ def main():
     
     if not os.path.exists(output_dir): os.makedirs(output_dir)
     
+    import torch
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    if device == 'cuda':
+        gpu_name = torch.cuda.get_device_name(0)
+        logging.info(f"GPU detected: {gpu_name}. Using CUDA acceleration.")
+    else:
+        logging.info("No GPU detected or CUDA not available. Using CPU.")
+
     media_service = MediaService(temp_dir=temp_dir)
-    transcriber_service = TranscriptionService()
+    transcriber_service = TranscriptionService(device=device)
     
     queue_manager = QueueManager(
         media_service=media_service,
@@ -81,8 +89,15 @@ def main():
             
     window = MainWindow(queue_manager, resource_manager, config_manager)
     window.show()
+    
     exit_code = app.exec()
-    resource_manager.stop(); resource_manager.wait(); sys.exit(exit_code)
+    
+    # Proper cleanup sequence
+    queue_manager.cancel_all()
+    resource_manager.stop()
+    resource_manager.wait(3000) # Wait up to 3 seconds for the thread to finish
+    
+    sys.exit(exit_code)
 
 if __name__ == "__main__":
     main()
