@@ -18,6 +18,7 @@ class MediaService:
             'no_warnings': True,
             'noplaylist': True,
             'extract_flat': False,
+            'fragment_retries': 10,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
@@ -67,6 +68,7 @@ class MediaService:
             'quiet': True,
             'no_warnings': True,
             'outtmpl': output_path_no_ext,
+            'fragment_retries': 10,
         }
 
         # --- AUDIO FORMATS ---

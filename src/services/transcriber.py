@@ -32,11 +32,8 @@ def _subprocess_transcribe_worker(audio_path, output_midi_path, device):
         if np.max(np.abs(audio)) > 0:
             audio = audio / np.max(np.abs(audio))
         
-        # Perform transcription with higher sensitivity settings
-        # Default thresholds are usually 0.3. Lowering them helps capture missing notes.
-        transcriber.transcribe(audio, output_midi_path, 
-                               onset_threshold=0.15, 
-                               frame_threshold=0.15)
+        # Perform transcription
+        transcriber.transcribe(audio, output_midi_path)
         
         # Cleanup
         del audio
