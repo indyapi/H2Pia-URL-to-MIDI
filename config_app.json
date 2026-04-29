@@ -1,11 +1,11 @@
 {
-    "cpu_mode": "default",
-    "cpu_limit": 50,
-    "ram_mode": "default",
-    "ram_limit": 50,
+    "cpu_mode": "custom",
+    "cpu_limit": 100,
+    "ram_mode": "custom",
+    "ram_limit": 100,
     "queue_size_limit": 30,
     "concurrency_limit": 3,
     "output_dir": "output",
     "theme": "dark",
-    "output_format": "MP4_720P"
+    "output_format": "MIDI"
 }
