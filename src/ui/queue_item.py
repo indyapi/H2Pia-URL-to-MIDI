@@ -36,6 +36,8 @@ class QueueItem(QFrame):
         self.format_name = format_name
         self.setObjectName("Card") 
         self.thumb_worker = None
+        self.last_status = "Queued"
+        self.last_progress = 0
         
         self.init_ui()
 
@@ -74,7 +76,7 @@ class QueueItem(QFrame):
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        self.update_progress_style(0)
+        self.update_progress_style("Queued")
         self.details_layout.addWidget(self.progress_bar)
         
         self.main_layout.addLayout(self.details_layout, 1)
@@ -122,11 +124,23 @@ class QueueItem(QFrame):
             pixmap = QPixmap.fromImage(image)
             self.thumbnail.setPixmap(pixmap.scaled(120, 68, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
-    def update_progress_style(self, value):
-        color = "#FF8C00" # Orange
-        if value > 75: color = "#00BFFF" # Blue
-        elif value > 50: color = "#2ECC71" # Green
-        elif value > 25: color = "#F1C40F" # Yellow
+    def update_progress_style(self, status):
+        # Default color (Orange)
+        color = "#FF8C00" 
+        
+        status_lower = status.lower()
+        if "metadata" in status_lower:
+            color = "#2EC1CC" # Cyan/Teal
+        elif "downloading" in status_lower:
+            color = "#F1C40F" # Yellow
+        elif "processing" in status_lower:
+            color = "#E67E22" # Darker Orange
+        elif "completing" in status_lower:
+            color = "#3498DB" # Blue
+        elif "finished" in status_lower:
+            color = "#2ECC71" # Green
+        elif "failed" in status_lower or "error" in status_lower:
+            color = "#E74C3C" # Red
             
         self.progress_bar.setStyleSheet(f"""
             QProgressBar {{ background-color: #1E293B; border: none; border-radius: 3px; }}
@@ -134,9 +148,14 @@ class QueueItem(QFrame):
         """)
 
     def update_status(self, status, progress):
+        # Only track "real" statuses, not temporary pause/resume messages
+        if "paused" not in status.lower() and "resuming" not in status.lower():
+            self.last_status = status
+            self.last_progress = progress
+
         self.status_label.setText(status)
         self.progress_bar.setValue(progress)
-        self.update_progress_style(progress)
-        if status == "Finished": self.update_progress_style(100)
-        elif "Error" in status:
-            self.progress_bar.setStyleSheet("QProgressBar::chunk { background-color: #E74C3C; }")
+        self.update_progress_style(status)
+
+    def restore_last_status(self):
+        self.update_status(self.last_status, self.last_progress)

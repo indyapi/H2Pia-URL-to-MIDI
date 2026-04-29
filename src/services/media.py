@@ -16,14 +16,28 @@ class MediaService:
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
-            'extract_flat': True,
+            'noplaylist': True,
+            'extract_flat': False,
+            'fragment_retries': 10,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
                 info = ydl.extract_info(url, download=False)
+                
+                # If it's a playlist-like structure, get the first entry
+                if 'entries' in info and info['entries']:
+                    info = info['entries'][0]
+                
+                # Ensure thumbnail is a string if it exists
+                thumbnail = info.get('thumbnail')
+                if isinstance(thumbnail, list) and thumbnail:
+                    thumbnail = thumbnail[0].get('url')
+                elif isinstance(thumbnail, dict):
+                    thumbnail = thumbnail.get('url')
+                
                 return {
-                    'title': info.get('title', 'Unknown Title'),
-                    'thumbnail': info.get('thumbnail'),
+                    'title': info.get('title') or info.get('id') or 'Unknown Title',
+                    'thumbnail': thumbnail,
                     'duration': info.get('duration'),
                     'id': info.get('id')
                 }
@@ -54,6 +68,7 @@ class MediaService:
             'quiet': True,
             'no_warnings': True,
             'outtmpl': output_path_no_ext,
+            'fragment_retries': 10,
         }
 
         # --- AUDIO FORMATS ---
@@ -86,13 +101,11 @@ class MediaService:
         # --- MIDI MODE ---
         elif format_type == 'MIDI':
             ydl_opts.update({
-                'format': 'bestaudio/best',
+                'format': 'bestaudio/best', # Get highest quality regardless of bitrate
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'wav',
-                    'preferredquality': '192',
                 }],
-                'postprocessor_args': ['-ar', '16000', '-ac', '1'],
             })
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
